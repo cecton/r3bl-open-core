@@ -1,14 +1,18 @@
 // Copyright (c) 2024-2025 R3BL LLC. Licensed under Apache License, Version 2.0.
 
-use crate::{MkdirOptions, try_mkdir};
-use std::{path::PathBuf, sync::Mutex};
+use crate::{DeadlockPreventionPolicy, MkdirOptions, MutexExt, ScopedMutex, try_mkdir};
+use std::{path::PathBuf,
+          sync::{LazyLock, Mutex}};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 
 /// Keeps the background writer thread alive for the lifetime of the process. If this
 /// guard is dropped, the background thread exits and buffered logs are flushed.
 ///
-/// Uses [`Mutex<Option>`] so [`GlobalLogFileGuard`] can `.take()` it on drop to flush.
-static ROLLING_LOG_FILE_WRITER_GUARD: Mutex<Option<WorkerGuard>> = Mutex::new(None);
+/// Uses [`ScopedMutex<Option>`] so [`GlobalLogFileGuard`] can `.take()` it on drop to
+/// flush.
+pub static ROLLING_LOG_FILE_WRITER_GUARD: LazyLock<
+    ScopedMutex<Option<WorkerGuard>, { DeadlockPreventionPolicy::PanicOnAnyLockNesting }>,
+> = LazyLock::new(|| Mutex::new(None).into_scoped_mutex());
 
 /// Creates a non-blocking file writer backed by a rolling file appender.
 ///
@@ -34,10 +38,12 @@ static ROLLING_LOG_FILE_WRITER_GUARD: Mutex<Option<WorkerGuard>> = Mutex::new(No
 /// Panics if the guard mutex is poisoned.
 ///
 /// [`mio-poller`]: crate::terminal_lib_backends::direct_to_ansi::input::mio_poller
-#[allow(clippy::unwrap_in_result)]
+/// [`Mutex<Option>`]: std::sync::Mutex
+/// [`Mutex`]: std::sync::Mutex
+#[allow(clippy::unwrap_in_result, clippy::redundant_closure_for_method_calls)]
 pub fn try_create(path_str: &str) -> miette::Result<NonBlocking> {
     // Can only init this once per process.
-    if ROLLING_LOG_FILE_WRITER_GUARD.lock().unwrap().is_some() {
+    if ROLLING_LOG_FILE_WRITER_GUARD.read(|it: &Option<WorkerGuard>| it.is_some()) {
         miette::bail!("Rolling file appender already created");
     }
 
@@ -66,7 +72,8 @@ pub fn try_create(path_str: &str) -> miette::Result<NonBlocking> {
         tracing_appender::non_blocking(rolling_file_appender);
 
     // Save the guard so the background thread lives for the process lifetime.
-    *ROLLING_LOG_FILE_WRITER_GUARD.lock().unwrap() = Some(guard);
+    ROLLING_LOG_FILE_WRITER_GUARD
+        .write(|slot: &mut Option<WorkerGuard>| *slot = Some(guard));
 
     Ok(non_blocking_rolling_file_appender)
 }
@@ -95,8 +102,18 @@ pub struct GlobalLogFileGuard;
 
 impl Drop for GlobalLogFileGuard {
     fn drop(&mut self) {
-        if let Ok(mut slot) = ROLLING_LOG_FILE_WRITER_GUARD.lock() {
+        ROLLING_LOG_FILE_WRITER_GUARD.lock_raw(|result: std::sync::LockResult<std::sync::MutexGuard<'_, Option<WorkerGuard>>>| {
+            let mut slot = match result {
+                Ok(guard) => guard,
+                Err(poisoned) => {
+                    tracing::error!(
+                        message = "ROLLING_LOG_FILE_WRITER_GUARD lock poisoned during drop",
+                        error = ?poisoned
+                    );
+                    poisoned.into_inner()
+                }
+            };
             drop(slot.take()); // WorkerGuard::drop() flushes the buffer.
-        }
+        });
     }
 }

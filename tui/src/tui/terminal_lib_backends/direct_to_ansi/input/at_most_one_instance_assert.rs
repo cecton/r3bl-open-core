@@ -40,7 +40,8 @@ pub fn claim_and_assert() {
     assert_eq!(
         device_already_exists, false,
         "DirectToAnsiInputDevice::new() called while another device exists. \
-         Use device.subscribe() for additional receivers."
+         Use device.try_subscribe() (fallible) to get a guard, then guard.try_subscribe() \
+         for additional receivers."
     );
 }
 

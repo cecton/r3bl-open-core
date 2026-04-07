@@ -1,14 +1,16 @@
 // Copyright (c) 2024-2025 R3BL LLC. Licensed under Apache License, Version 2.0.
 
+use std::any::Any;
+
 // cspell:words FAILCRITICALERRORS HKLM NOGPFAULTERRORBOX
 
 // Attach sources.
-pub mod pty_test_fixtures;
-pub mod isolated_process_fixtures;
 pub mod input_device_fixtures;
+pub mod isolated_process_fixtures;
 pub mod output_device_fixtures;
-pub mod tcp_stream_fixtures;
+pub mod pty_test_fixtures;
 pub mod retry;
+pub mod tcp_stream_fixtures;
 
 // Re-export.
 pub use input_device_fixtures::*;
@@ -17,6 +19,49 @@ pub use output_device_fixtures::*;
 pub use pty_test_fixtures::*;
 pub use retry::*;
 pub use tcp_stream_fixtures::*;
+
+/// Extracts a human-readable message from a panic payload.
+///
+/// # Why `dyn Any + Send`?
+///
+/// Unlike recoverable errors ([`std::error::Error`]), caught panics (from
+/// [`std::panic::catch_unwind`] or [`std::thread::JoinHandle::join`]) return a `Box<dyn
+/// Any + Send>`. This is because a panic can be triggered with any type, and the most
+/// common types used for panic messages ([`&str`] and [`String`]) do not implement the
+/// [`Error`] trait.
+///
+/// # Why check both [`&str`] and [`String`]?
+///
+/// The [`panic!`] macro follows two different internal paths:
+/// 1. Static literals (e.g., `panic!("msg")`) are passed as `&'static str` to avoid
+///    allocation.
+/// 2. Formatted strings (e.g., `panic!("val: {}", v)`) are allocated as [`String`].
+///
+/// This function handles both to ensure common panic messages are correctly captured.
+///
+/// # Panics
+///
+/// Panics if the provided `result` is [`Ok`]. This function is intended to be used
+/// on the result of [`std::panic::catch_unwind`] or [`std::thread::JoinHandle::join`]
+/// when it is known to be an [`Err`].
+///
+/// # Returns
+///
+/// - The extracted message as a [`String`].
+/// - A default "Unknown panic payload" message if the payload type is neither [`&str`]
+///   nor [`String`].
+///
+/// [`Error`]: std::error::Error
+pub fn extract_panic_message<T>(result: Result<T, Box<dyn Any + Send>>) -> String {
+    let panic_payload = result.err().expect("Expected a panic but found Ok");
+    if let Some(s) = panic_payload.downcast_ref::<&str>() {
+        return s.to_string();
+    }
+    if let Some(s) = panic_payload.downcast_ref::<String>() {
+        return s.clone();
+    }
+    format!("Unknown panic payload: {panic_payload:?}")
+}
 
 /// Creates a [`std::process::Command`] for the current test executable, configured
 /// for isolated test runner usage. On Windows, sets [`CREATE_NO_WINDOW`] to prevent
@@ -74,5 +119,31 @@ pub fn suppress_wer_dialogs() {
         unsafe {
             SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_panic_message() {
+        let payload_str: Box<dyn Any + Send> = Box::new("test str");
+        assert_eq!(
+            extract_panic_message(Result::<(), _>::Err(payload_str)),
+            "test str"
+        );
+
+        let payload_string: Box<dyn Any + Send> = Box::new("test string".to_string());
+        assert_eq!(
+            extract_panic_message(Result::<(), _>::Err(payload_string)),
+            "test string"
+        );
+
+        let payload_other: Box<dyn Any + Send> = Box::new(42);
+        assert!(
+            extract_panic_message(Result::<(), _>::Err(payload_other))
+                .contains("Unknown panic payload")
+        );
     }
 }
