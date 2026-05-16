@@ -35,6 +35,25 @@ pub trait App {
         has_focus: &mut HasFocus,
     );
 
+    /// Called once immediately after [`App::app_init`], before the first render.
+    ///
+    /// Use this hook to start background tasks that need access to
+    /// `global_data.main_thread_channel_sender` to communicate back to the main thread.
+    ///
+    /// - `global_data`: Provides access to shared state and the main-thread channel sender,
+    ///   which is the primary reason this hook exists.
+    /// - `component_registry_map`: Provided for completeness; allows inspecting or
+    ///   modifying registered components at startup if needed.
+    /// - `has_focus`: Provided for completeness; allows reading or adjusting focus state
+    ///   before the first render if needed.
+    fn app_start(
+        &mut self,
+        _global_data: &mut GlobalData<Self::S, Self::AS>,
+        _component_registry_map: &mut ComponentRegistryMap<Self::S, Self::AS>,
+        _has_focus: &mut HasFocus,
+    ) {
+    }
+
     /// At a high level:
     /// - Use the `input_event` to dispatch an action to the store if needed.
     /// - It returns an [`EventPropagation`].

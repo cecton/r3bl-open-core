@@ -258,13 +258,20 @@ where
             output_device.is_mock,
         );
 
-        // Initialize app and render.
+        // Initialize app and start background tasks before the first render.
+        app.app_init(&mut self.component_registry_map, &mut self.has_focus);
+        app.app_start(
+            &mut self.global_data,
+            &mut self.component_registry_map,
+            &mut self.has_focus,
+        );
+
+        // Render the first frame.
         let telemetry = &mut self.telemetry;
         telemetry_record!(
             @telemetry: telemetry,
             @hint: TelemetryAtomHint::Render,
             @block: {
-                app.app_init(&mut self.component_registry_map, &mut self.has_focus);
                 AppManager::render_app(
                     app,
                     &mut self.global_data,
