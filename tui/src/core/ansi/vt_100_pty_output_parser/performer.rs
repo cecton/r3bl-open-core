@@ -526,13 +526,12 @@ impl Perform for AnsiToOfsBufPerformer<'_> {
                 vt_100_shim_cursor_ops::vertical_position_absolute(self, params);
             }
 
-            // Display control operations (explicitly ignored).
-            ED_ERASE_DISPLAY | EL_ERASE_LINE => {
-                // Clear screen/line - ignore, TUI apps will repaint themselves
-                tracing::warn!(
-                    "CSI {}: Clear display/line operation ignored",
-                    dispatch_char
-                );
+            // Display control operations.
+            ED_ERASE_DISPLAY => {
+                vt_100_shim_line_ops::erase_display(self, params);
+            }
+            EL_ERASE_LINE => {
+                vt_100_shim_line_ops::erase_line(self, params);
             }
 
             // Other unimplemented CSI sequences.

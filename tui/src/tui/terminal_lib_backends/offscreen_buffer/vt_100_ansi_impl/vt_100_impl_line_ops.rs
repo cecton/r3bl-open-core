@@ -59,7 +59,8 @@
 //! [`VT-100`]: https://vt100.net/docs/vt100-ug/chapter3.html
 //! [Interval Notation]: crate::bounds_check#interval-notation
 
-use crate::{Length, OffscreenBuffer, PixelChar, RowHeight, RowIndex,
+use crate::{EraseDisplayMode, EraseLineMode, Length, OffscreenBuffer, PixelChar,
+            RowHeight, RowIndex,
             core::coordinates::bounds_check::{RangeBoundsExt, RangeBoundsResult,
                                               RangeConvertExt}, ok};
 use std::ops::Range;
@@ -87,6 +88,113 @@ impl OffscreenBuffer {
             lines[0].iter().all(|ch| *ch == PixelChar::Spacer),
             "Line clear operation failed at row {row:?}"
         );
+
+        ok!()
+    }
+
+    /// Erase part or all of the current line, filling with spaces that use the active
+    /// SGR style (including background color).
+    ///
+    /// This implements [`VT-100`] EL (Erase Line) behavior for the ANSI parser. Unlike
+    /// [`clear_line`], the erased cells preserve the current SGR state so background
+    /// colors extend to the end of the line.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the row is out of bounds.
+    ///
+    /// [`VT-100`]: https://vt100.net/docs/vt100-ug/chapter3.html
+    /// [`clear_line`]: crate::OffscreenBuffer::clear_line
+    pub fn erase_line(&mut self, mode: EraseLineMode) -> miette::Result<()> {
+        let row = self.cursor_pos.row_index.as_usize();
+        let col = self.cursor_pos.col_index.as_usize();
+        let current_style = self.ansi_parser_support.current_style;
+        let next_row = RowIndex::from(row + 1);
+        let row_range = RowIndex::from(row)..next_row;
+        let Some((_, _, lines)) = self.validate_row_range_mut(row_range) else {
+            miette::bail!("Operation failed");
+        };
+        let line = &mut lines[0];
+
+        let fill = PixelChar::PlainText {
+            display_char: ' ',
+            style: current_style,
+        };
+
+        match mode {
+            EraseLineMode::FromCursorToEnd => {
+                let start = col.min(line.len());
+                for c in start..line.len() {
+                    line[c] = fill;
+                }
+            }
+            EraseLineMode::FromStartToCursor => {
+                let end = col.min(line.len().saturating_sub(1));
+                for c in 0..=end {
+                    line[c] = fill;
+                }
+            }
+            EraseLineMode::EntireLine => {
+                line.fill(fill);
+            }
+        }
+
+        ok!()
+    }
+
+    /// Erase part or all of the display, filling with spaces that use the active SGR
+    /// style.
+    ///
+    /// This implements [`VT-100`] ED (Erase Display) behavior for the ANSI parser.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
+    ///
+    /// [`VT-100`]: https://vt100.net/docs/vt100-ug/chapter3.html
+    pub fn erase_display(&mut self, mode: EraseDisplayMode) -> miette::Result<()> {
+        let fill = PixelChar::PlainText {
+            display_char: ' ',
+            style: self.ansi_parser_support.current_style,
+        };
+
+        let cursor_row = self.cursor_pos.row_index.as_usize();
+        let cursor_col = self.cursor_pos.col_index.as_usize();
+
+        match mode {
+            EraseDisplayMode::FromCursorToEnd => {
+                if let Some(line) = self.buffer.get_mut(cursor_row) {
+                    let col = cursor_col.min(line.len());
+                    for c in col..line.len() {
+                        line[c] = fill;
+                    }
+                }
+                for r in (cursor_row + 1)..self.buffer.len() {
+                    if let Some(line) = self.buffer.get_mut(r) {
+                        line.fill(fill);
+                    }
+                }
+            }
+            EraseDisplayMode::FromStartToCursor => {
+                for r in 0..cursor_row {
+                    if let Some(line) = self.buffer.get_mut(r) {
+                        line.fill(fill);
+                    }
+                }
+                if let Some(line) = self.buffer.get_mut(cursor_row) {
+                    let col = cursor_col.min(line.len().saturating_sub(1));
+                    for c in 0..=col {
+                        line[c] = fill;
+                    }
+                }
+            }
+            EraseDisplayMode::EntireScreen
+            | EraseDisplayMode::EntireScreenAndScrollback => {
+                for line in self.buffer.iter_mut() {
+                    line.fill(fill);
+                }
+            }
+        }
 
         ok!()
     }
