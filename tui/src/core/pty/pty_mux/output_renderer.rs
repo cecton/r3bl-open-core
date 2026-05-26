@@ -9,8 +9,8 @@
 //!
 //! [`PTY`]: https://en.wikipedia.org/wiki/Pseudoterminal
 
-use super::ProcessManager;
-use crate::{FlushKind, GCStringOwned, IndexOps, OffscreenBuffer, OutputDevice, PixelChar, Pos, RenderOpsLocalData, SPACE_CHAR, Size, TuiStyle, col, core::coordinates::{idx, len}, lock_output_device_as_mut, ok, print_text_with_attributes, row, tui::terminal_lib_backends::{OffscreenBufferPaint, OffscreenBufferPaintImpl}, tui_color, tui_style_attrib::Bold, tui_style_attribs, width};
+use super::{Margin, ProcessManager};
+use crate::{FlushKind, GCStringOwned, IndexOps, OffscreenBuffer, OutputDevice, PixelChar, Pos, RenderOpCommon, RenderOpOutput, RenderOpsLocalData, SPACE_CHAR, Size, TuiStyle, col, core::coordinates::{idx, len}, lock_output_device_as_mut, ok, print_text_with_attributes, row, tui::terminal_lib_backends::{OffscreenBufferPaint, OffscreenBufferPaintImpl}, tui_color, tui_style_attrib::Bold, tui_style_attribs, width};
 
 /// [`RowHeight`] reserved for the status bar at the bottom of the terminal.
 ///
@@ -26,20 +26,24 @@ pub const MAX_PROCESSES: usize = 9;
 /// into it for final rendering.
 pub struct OutputRenderer {
     terminal_size: Size,
+    margin: Margin,
 }
 
 impl std::fmt::Debug for OutputRenderer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OutputRenderer")
             .field("terminal_size", &self.terminal_size)
+            .field("margin", &self.margin)
             .finish()
     }
 }
 
 impl OutputRenderer {
-    /// Creates a new output renderer with the given terminal size.
+    /// Creates a new output renderer with the given terminal size and margin.
     #[must_use]
-    pub fn new(terminal_size: Size) -> Self { Self { terminal_size } }
+    pub fn new(terminal_size: Size, margin: Margin) -> Self {
+        Self { terminal_size, margin }
+    }
 
     /// Renders the active process's buffer with the status bar composited on top.
     ///
@@ -73,8 +77,8 @@ impl OutputRenderer {
         // Composite status bar into the last row.
         self.composite_status_bar_into_buffer(&mut composite_buffer, process_manager);
 
-        // Paint the composite buffer to terminal.
-        paint_buffer(&composite_buffer, output_device);
+        // Paint the composite buffer to terminal at the margin offset.
+        paint_buffer(&composite_buffer, output_device, self.margin);
 
         ok!()
     }
@@ -151,6 +155,14 @@ impl OutputRenderer {
     fn generate_status_text(&self, process_manager: &ProcessManager) -> String {
         let mut status_parts = Vec::new();
 
+        // Content width accounts for left/right margins.
+        let content_width = self
+            .terminal_size
+            .col_width
+            .as_u16()
+            .saturating_sub(self.margin.left)
+            .saturating_sub(self.margin.right);
+
         // Show process tabs with live status indicators: 1:[🟢claude] 2:[🔴btop] etc.
         let mut current_width = width(0);
 
@@ -169,7 +181,7 @@ impl OutputRenderer {
                 .display_width()
                 .as_usize();
             let new_width = current_width + tab_width;
-            if new_width > self.terminal_size.col_width {
+            if new_width > width(content_width) {
                 break;
             }
 
@@ -183,7 +195,7 @@ impl OutputRenderer {
 
         let shortcuts_width = GCStringOwned::from(shortcuts.as_str()).display_width();
         let total_width = current_width + shortcuts_width;
-        if total_width > self.terminal_size.col_width {
+        if total_width > width(content_width) {
             return status_parts.join("");
         }
         status_parts.push(shortcuts);
@@ -232,14 +244,25 @@ impl OutputRenderer {
 }
 
 /// Paint the given [`OffscreenBuffer`] to terminal using existing paint
-/// infrastructure.
-fn paint_buffer(ofs_buf: &OffscreenBuffer, output_device: &OutputDevice) {
+/// infrastructure, offset by the given margin.
+fn paint_buffer(ofs_buf: &OffscreenBuffer, output_device: &OutputDevice, margin: Margin) {
     let mut crossterm_impl = OffscreenBufferPaintImpl {};
-    let render_ops = crossterm_impl.render(ofs_buf);
+    let mut render_ops = crossterm_impl.render(ofs_buf);
+
+    // Offset all absolute cursor positions by the margin.
+    if margin.top > 0 || margin.left > 0 {
+        for op in &mut render_ops.list {
+            if let RenderOpOutput::Common(RenderOpCommon::MoveCursorPositionAbs(pos)) = op {
+                pos.row_index += row(margin.top);
+                pos.col_index += col(margin.left);
+            }
+        }
+    }
+
     crossterm_impl.paint(
         render_ops,
         FlushKind::JustFlush,
-        ofs_buf.window_size, // Don't use self.terminal_size (may be different).
+        ofs_buf.window_size,
         lock_output_device_as_mut!(output_device),
         false, // is_mock = false
     );

@@ -10,11 +10,11 @@
 //! [`PTY`]: https://en.wikipedia.org/wiki/Pseudoterminal
 //! [ANSI parser]: crate::AnsiToOfsBufPerformer
 
-use super::output_renderer::STATUS_BAR_HEIGHT;
-use crate::{OffscreenBuffer, Size,
+use super::{output_renderer::STATUS_BAR_HEIGHT, Margin};
+use crate::{OffscreenBuffer, Size, width, height,
             core::{osc::OscEvent,
                    pty::{PtyInputEvent, PtyOutputEvent, PtySession, PtySessionBuilder}},
-            height, ok};
+            ok};
 use std::fmt::{Debug, Formatter, Result};
 
 /// Manages multiple [`PTY`] processes and handles switching between them.
@@ -25,6 +25,7 @@ pub struct ProcessManager {
     processes: Vec<Process>,
     active_index: usize,
     terminal_size: Size,
+    margin: Margin,
 }
 
 /// Represents a single process that can be managed by the multiplexer.
@@ -61,21 +62,16 @@ pub struct Process {
 impl Process {
     /// Creates a new process definition with virtual terminal buffer.
     ///
-    /// The buffer is sized to (height-1, width) to reserve space for the status bar. Each
-    /// process gets its own virtual terminal that persists when switching.
+    /// The buffer is sized to account for margins and status bar. Each process gets its
+    /// own virtual terminal that persists when switching.
     pub fn new(
         name: impl Into<String>,
         command: impl Into<String>,
         args: Vec<String>,
         terminal_size: Size,
+        margin: Margin,
     ) -> Self {
-        // Reserve bottom row for status bar - buffer gets reduced height.
-        let buffer_size = Size {
-            row_height: height(
-                terminal_size.row_height.saturating_sub(STATUS_BAR_HEIGHT),
-            ),
-            col_width: terminal_size.col_width,
-        };
+        let buffer_size = buffer_size_from_terminal_size(terminal_size, margin);
 
         Self {
             name: name.into(),
@@ -227,14 +223,34 @@ impl Debug for Process {
     }
 }
 
+/// Compute the buffer (and PTY) size from terminal size and margins.
+fn buffer_size_from_terminal_size(terminal_size: Size, margin: Margin) -> Size {
+    let row_height_val = terminal_size
+        .row_height
+        .as_u16()
+        .saturating_sub(margin.top)
+        .saturating_sub(margin.bottom)
+        .saturating_sub(STATUS_BAR_HEIGHT);
+    let col_width_val = terminal_size
+        .col_width
+        .as_u16()
+        .saturating_sub(margin.left)
+        .saturating_sub(margin.right);
+    Size {
+        row_height: height(row_height_val),
+        col_width: width(col_width_val),
+    }
+}
+
 impl ProcessManager {
-    /// Creates a new process manager with the given processes and terminal size.
+    /// Creates a new process manager with the given processes, terminal size, and margin.
     #[must_use]
-    pub fn new(processes: Vec<Process>, terminal_size: Size) -> Self {
+    pub fn new(processes: Vec<Process>, terminal_size: Size, margin: Margin) -> Self {
         Self {
             processes,
             active_index: 0,
             terminal_size,
+            margin,
         }
     }
 
@@ -303,15 +319,8 @@ impl ProcessManager {
         let process = &mut self.processes[index];
         tracing::debug!("Spawning process: {} ({})", process.name, process.command);
 
-        // Reserve bottom row for status bar - PTY gets reduced height.
-        let pty_size = Size {
-            row_height: height(
-                self.terminal_size
-                    .row_height
-                    .saturating_sub(STATUS_BAR_HEIGHT),
-            ),
-            col_width: self.terminal_size.col_width,
-        };
+        // Account for margins and status bar - PTY gets reduced size.
+        let pty_size = buffer_size_from_terminal_size(self.terminal_size, self.margin);
 
         // Use existing PtySessionBuilder with reduced size.
         let session = PtySessionBuilder::new(&process.command)
@@ -427,11 +436,8 @@ impl ProcessManager {
     pub fn handle_terminal_resize(&mut self, new_size: Size) {
         self.terminal_size = new_size;
 
-        // Calculate PTY/buffer size (reserve status bar).
-        let pty_size = Size {
-            row_height: height(new_size.row_height.saturating_sub(STATUS_BAR_HEIGHT)),
-            col_width: new_size.col_width,
-        };
+        // Calculate PTY/buffer size (account for margins and status bar).
+        let pty_size = buffer_size_from_terminal_size(new_size, self.margin);
 
         tracing::debug!(
             "Handling terminal resize to {:?}, PTY size: {:?}",

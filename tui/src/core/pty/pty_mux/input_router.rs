@@ -140,7 +140,7 @@ impl InputRouter {
             }
             InputEvent::Resize(new_size) => {
                 // Handle terminal resize - forward to all active PTYs.
-                Self::handle_resize(process_manager, new_size);
+                Self::handle_resize(process_manager, new_size, output_device);
             }
             InputEvent::Shutdown(_) => {
                 // Input thread died - signal exit so the mux doesn't hang waiting for
@@ -183,16 +183,20 @@ impl InputRouter {
     /// sessions to reserve space for the status bar.
     ///
     /// [`PTY`]: https://en.wikipedia.org/wiki/Pseudoterminal
-    fn handle_resize(process_manager: &mut ProcessManager, new_size: Size) {
+    fn handle_resize(
+        process_manager: &mut ProcessManager,
+        new_size: Size,
+        output_device: &OutputDevice,
+    ) {
+        // Clear screen to handle margin changes on resize.
+        {
+            let out = lock_output_device_as_mut!(output_device);
+            let _unused = out.write_all(AnsiSequenceGenerator::clear_screen().as_bytes());
+            let _unused = out.flush();
+        }
+
         // Update manager's size (full terminal size)
         process_manager.handle_terminal_resize(new_size);
-
-        // Forward reduced size to all PTY sessions to reserve status bar space.
-        // Note: The process manager handles the actual PTY size conversion
-        // We just need to update the manager with the full terminal size.
-
-        // The process manager handles forwarding resize events to PTY sessions
-        // so we don't need to do it here explicitly.
     }
 }
 

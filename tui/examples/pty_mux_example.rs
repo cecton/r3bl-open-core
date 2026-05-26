@@ -50,8 +50,8 @@
 //! [`OSC`]: crate::osc_codes::OscSequence
 
 use r3bl_tui::{IntoErr, TuiAvailability, assert_terminal_is_interactive,
-               core::pty_mux::PTYMux, ok, set_mimalloc_in_main,
-               try_initialize_logging_global};
+               core::pty_mux::{Margin, PTYMux},
+               ok, set_mimalloc_in_main, try_initialize_logging_global};
 
 #[tokio::main]
 async fn main() -> miette::Result<()> {
@@ -90,7 +90,7 @@ async fn main() -> miette::Result<()> {
     println!("📝 Debug output will be written to /tmp/r3bl_tui/log.txt");
     println!();
 
-    let mut builder = PTYMux::builder();
+    let mut builder = PTYMux::builder().margin(Margin::new(2, 4, 2, 4));
     let mut added_count = 0;
 
     for (name, command, args) in processes {

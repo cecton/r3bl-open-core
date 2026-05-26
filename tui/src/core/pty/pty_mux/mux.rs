@@ -22,6 +22,7 @@ pub struct PTYMux {
     input_router: InputRouter,
     output_renderer: OutputRenderer,
     terminal_size: Size,
+    margin: Margin,
     output_device: OutputDevice,
     input_device: InputDevice,
 }
@@ -33,17 +34,35 @@ impl std::fmt::Debug for PTYMux {
             .field("input_router", &self.input_router)
             .field("output_renderer", &self.output_renderer)
             .field("terminal_size", &self.terminal_size)
+            .field("margin", &self.margin)
             .field("output_device", &"<OutputDevice>")
             .field("input_device", &"<InputDevice>")
             .finish()
     }
 }
 
+/// Margins for PTY rendering area on screen.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Margin {
+    pub top: u16,
+    pub right: u16,
+    pub bottom: u16,
+    pub left: u16,
+}
+
+impl Margin {
+    #[must_use]
+    pub const fn new(top: u16, right: u16, bottom: u16, left: u16) -> Self {
+        Self { top, right, bottom, left }
+    }
+}
+
 /// Builder for configuring and creating a [`PTYMux`] instance.
-#[derive(Default, Debug)]
+#[derive(Debug, Default)]
 pub struct PTYMuxBuilder {
     process_configs: Vec<(String, String, Vec<String>)>,
     terminal_size: Option<Size>,
+    margin: Margin,
 }
 
 impl PTYMuxBuilder {
@@ -70,6 +89,13 @@ impl PTYMuxBuilder {
     ) -> Self {
         self.process_configs
             .push((name.into(), command.into(), args));
+        self
+    }
+
+    /// Sets the margin for the multiplexer.
+    #[must_use]
+    pub fn margin(mut self, margin: Margin) -> Self {
+        self.margin = margin;
         self
     }
 
@@ -122,11 +148,13 @@ impl PTYMuxBuilder {
                         None => get_size()?,
                     };
 
+                    let margin = self.margin;
+
                     let processes = self
                         .process_configs
                         .into_iter()
                         .map(|(name, command, args)| {
-                            Process::new(name, command, args, terminal_size)
+                            Process::new(name, command, args, terminal_size, margin)
                         })
                         .collect();
 
@@ -136,10 +164,11 @@ impl PTYMuxBuilder {
                     let input_device = InputDevice::default();
 
                     Ok(PTYMux {
-                        process_manager: ProcessManager::new(processes, terminal_size),
+                        process_manager: ProcessManager::new(processes, terminal_size, margin),
                         input_router: InputRouter::new(),
-                        output_renderer: OutputRenderer::new(terminal_size),
+                        output_renderer: OutputRenderer::new(terminal_size, margin),
                         terminal_size,
+                        margin,
                         output_device,
                         input_device,
                     })
@@ -320,6 +349,10 @@ impl PTYMux {
         self.process_manager.handle_terminal_resize(new_size);
         self.output_renderer.update_terminal_size(new_size);
     }
+
+    /// Returns the current margin.
+    #[must_use]
+    pub fn margin(&self) -> Margin { self.margin }
 
     /// Gets the current terminal size.
     #[must_use]
