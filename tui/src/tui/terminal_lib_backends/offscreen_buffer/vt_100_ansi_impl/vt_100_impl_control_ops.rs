@@ -68,13 +68,15 @@ impl OffscreenBuffer {
     }
 
     /// Handles line feed control character (0x0A).
-    /// Moves cursor down one line if not at bottom boundary.
+    /// Moves cursor down one line and resets column to 0 for Unix
+    /// compatibility.
     pub fn handle_line_feed(&mut self) {
         let max_row = self.window_size.row_height;
         let next_row: RowIndex = self.cursor_pos.row_index + 1;
         if next_row.overflows(max_row) == ArrayOverflowResult::Within {
             self.cursor_pos.row_index = next_row;
         }
+        self.cursor_pos.col_index = col(0);
     }
 
     /// Handles carriage return control character (0x0D).
@@ -160,7 +162,7 @@ mod tests_control_ops {
         buffer.handle_line_feed();
 
         assert_eq!(buffer.cursor_pos.row_index, row(3));
-        assert_eq!(buffer.cursor_pos.col_index, col(5)); // column preserved
+        assert_eq!(buffer.cursor_pos.col_index, col(0)); // column reset for Unix compat
     }
 
     #[test]
@@ -170,9 +172,9 @@ mod tests_control_ops {
 
         buffer.handle_line_feed();
 
-        // Should not move when at bottom.
+        // Should not move when at bottom, but col still resets.
         assert_eq!(buffer.cursor_pos.row_index, row(5));
-        assert_eq!(buffer.cursor_pos.col_index, col(3));
+        assert_eq!(buffer.cursor_pos.col_index, col(0));
     }
 
     #[test]

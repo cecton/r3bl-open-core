@@ -31,12 +31,12 @@ fn test_control_characters() {
     );
     performer.print('X'); // Should overwrite 'A'
 
-    // Line feed should move to next line, but same column.
+    // Line feed should move to next line and reset column for Unix compatibility.
     performer.execute(LINE_FEED);
     assert_eq!(
         performer.ofs_buf.cursor_pos,
-        row(1) + col(1),
-        "Cursor should move to next row after LF, but same column"
+        row(1) + col(0),
+        "Cursor should move to next row and reset to col 0 after LF"
     );
 
     // Reset column for next test.
