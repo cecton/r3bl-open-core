@@ -71,6 +71,7 @@ impl OfsBufVT100 {
     ///
     /// Returns an error if the row is out of bounds.
     pub fn clear_line(&mut self, row: RowIndex) -> miette::Result<()> {
+        self.parser_global_state.pending_wrap = false;
         // Use type-safe row validation via validation helpers.
         let next_row = RowIndex::from(row.as_usize() + 1);
         let row_range = row..next_row;

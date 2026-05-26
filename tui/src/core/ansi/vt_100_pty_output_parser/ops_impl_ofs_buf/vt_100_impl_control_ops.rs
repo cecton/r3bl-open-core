@@ -36,6 +36,7 @@ impl OfsBufVT100 {
     ///
     /// Moves cursor left one position if not at leftmost column.
     pub fn handle_backspace(&mut self) {
+        self.parser_global_state.pending_wrap = false;
         let current_col = self.cursor_pos.col_index;
         if !current_col.is_zero() {
             self.cursor_pos.col_index = current_col - 1;
@@ -46,6 +47,7 @@ impl OfsBufVT100 {
     ///
     /// Moves cursor to next 8-column tab stop boundary.
     pub fn handle_tab(&mut self) {
+        self.parser_global_state.pending_wrap = false;
         let current_col = self.cursor_pos.col_index;
         let max_col = self.window_size.col_width;
 
@@ -71,12 +73,19 @@ impl OfsBufVT100 {
     ///
     /// Moves cursor down one line. If at the bottom of the scroll region,
     /// it scrolls the region up by one line.
-    pub fn handle_line_feed(&mut self) { let _unused = self.index_down(); }
+    pub fn handle_line_feed(&mut self) {
+        self.parser_global_state.pending_wrap = false;
+        let _unused = self.index_down();
+        self.cursor_pos.col_index = col(0);
+    }
 
     /// Handles carriage return control character (`13` dec, `0x0D` hex).
     ///
     /// Moves cursor to start of current line (column 0).
-    pub fn handle_carriage_return(&mut self) { self.cursor_pos.col_index = col(0); }
+    pub fn handle_carriage_return(&mut self) {
+        self.parser_global_state.pending_wrap = false;
+        self.cursor_pos.col_index = col(0);
+    }
 }
 
 #[cfg(test)]
@@ -213,5 +222,50 @@ mod tests_control_ops {
         // Should work correctly when already at start.
         assert_eq!(ofs_buf_vt_100.cursor_pos.row_index, row(3));
         assert_eq!(ofs_buf_vt_100.cursor_pos.col_index, col(0));
+    }
+
+    #[test]
+    fn test_handle_carriage_return_clears_pending_wrap() {
+        let mut buffer = create_test_buffer();
+        buffer.cursor_pos = row(3) + col(7);
+        buffer.parser_global_state.pending_wrap = true;
+
+        buffer.handle_carriage_return();
+
+        assert!(!buffer.parser_global_state.pending_wrap);
+        assert_eq!(buffer.cursor_pos.col_index, col(0));
+    }
+
+    #[test]
+    fn test_handle_line_feed_clears_pending_wrap() {
+        let mut buffer = create_test_buffer();
+        buffer.cursor_pos = row(2) + col(5);
+        buffer.parser_global_state.pending_wrap = true;
+
+        buffer.handle_line_feed();
+
+        assert!(!buffer.parser_global_state.pending_wrap);
+    }
+
+    #[test]
+    fn test_handle_tab_clears_pending_wrap() {
+        let mut buffer = create_test_buffer();
+        buffer.cursor_pos = row(1) + col(3);
+        buffer.parser_global_state.pending_wrap = true;
+
+        buffer.handle_tab();
+
+        assert!(!buffer.parser_global_state.pending_wrap);
+    }
+
+    #[test]
+    fn test_handle_backspace_clears_pending_wrap() {
+        let mut buffer = create_test_buffer();
+        buffer.cursor_pos = row(2) + col(5);
+        buffer.parser_global_state.pending_wrap = true;
+
+        buffer.handle_backspace();
+
+        assert!(!buffer.parser_global_state.pending_wrap);
     }
 }

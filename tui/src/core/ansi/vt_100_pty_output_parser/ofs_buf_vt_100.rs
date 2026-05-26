@@ -213,6 +213,14 @@ pub struct ParserGlobalState {
     /// [`VT-100`]: https://vt100.net/docs/vt100-ug/chapter3.html
     pub auto_wrap_mode: AutoWrapState,
 
+    /// VT100 pending-wrap state for correct auto-wrap behavior.
+    ///
+    /// When a character is printed at the rightmost column with DECAWM enabled, the
+    /// actual wrap to the next line is deferred until the next printable character.
+    /// This flag tracks that pending state. It is cleared by any cursor movement,
+    /// control character, or line operation before the wrap is triggered.
+    pub pending_wrap: bool,
+
     /// Currently active [`SGR`] (Select Graphic Rendition) text formatting.
     ///
     /// Accumulates text attributes (bold, italic, etc.) and colors from `ESC [ ... m`
