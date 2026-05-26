@@ -73,6 +73,7 @@ impl OffscreenBuffer {
     ///
     /// Returns an error if the row is out of bounds.
     pub fn clear_line(&mut self, row: RowIndex) -> miette::Result<()> {
+        self.ansi_parser_support.pending_wrap = false;
         // Use type-safe row validation via validation helpers.
         let next_row = RowIndex::from(row.as_usize() + 1);
         let row_range = row..next_row;
@@ -106,6 +107,7 @@ impl OffscreenBuffer {
     /// [`VT-100`]: https://vt100.net/docs/vt100-ug/chapter3.html
     /// [`clear_line`]: crate::OffscreenBuffer::clear_line
     pub fn erase_line(&mut self, mode: EraseLineMode) -> miette::Result<()> {
+        self.ansi_parser_support.pending_wrap = false;
         let row = self.cursor_pos.row_index.as_usize();
         let col = self.cursor_pos.col_index.as_usize();
         let current_style = self.ansi_parser_support.current_style;
