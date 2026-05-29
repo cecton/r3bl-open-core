@@ -209,6 +209,13 @@ pub struct AnsiParserSupport {
     /// [`DECSTBM`]: https://vt100.net/docs/vt510-rm/DECSTBM.html
     /// [`ESC`]: crate::EscSequence
     pub scroll_region_bottom: Option<TermRow>,
+
+    /// Saved main screen buffer when the alternate screen buffer is active.
+    ///
+    /// When a full-screen program (less, vim, etc.) enters the alternate screen
+    /// buffer via `CSI ?1049h`, the current offscreen buffer content is saved here.
+    /// When the program exits via `CSI ?1049l`, the saved content is restored.
+    pub saved_main_screen: Option<Box<OffscreenBuffer>>,
 }
 
 impl Default for AnsiParserSupport {
@@ -225,6 +232,7 @@ impl Default for AnsiParserSupport {
             pending_da_responses: Vec::new(),
             scroll_region_top: None, // Default: no top margin (uses row 1)
             scroll_region_bottom: None, // Default: no bottom margin (uses last row)
+            saved_main_screen: None,
         }
     }
 }

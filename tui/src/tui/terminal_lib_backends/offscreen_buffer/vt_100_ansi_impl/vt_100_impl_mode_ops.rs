@@ -41,6 +41,19 @@ impl OffscreenBuffer {
             AlternateScreenState::Inactive
         };
     }
+
+    pub fn save_main_screen(&mut self) {
+        if self.ansi_parser_support.saved_main_screen.is_none() {
+            self.ansi_parser_support.saved_main_screen = Some(Box::new(self.clone()));
+            self.clear();
+        }
+    }
+
+    pub fn restore_main_screen(&mut self) {
+        if let Some(saved) = self.ansi_parser_support.saved_main_screen.take() {
+            *self = *saved;
+        }
+    }
 }
 
 #[cfg(test)]
