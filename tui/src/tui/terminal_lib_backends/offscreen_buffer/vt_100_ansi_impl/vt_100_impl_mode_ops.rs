@@ -34,6 +34,11 @@ impl OffscreenBuffer {
         self.ansi_parser_support.auto_wrap_mode = enabled;
     }
 
+    /// DECTCEM — set cursor visibility (`CSI ?25 h` / `CSI ?25 l`).
+    pub fn set_cursor_visible(&mut self, enabled: bool) {
+        self.ansi_parser_support.cursor_visible = enabled;
+    }
+
     pub fn set_alternate_screen_mode(&mut self, enabled: bool) {
         self.terminal_mode.alternate_screen = if enabled {
             AlternateScreenState::Active

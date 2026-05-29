@@ -78,6 +78,9 @@ pub fn set_mode(
                 performer.ofs_buf.save_main_screen();
                 performer.ofs_buf.set_alternate_screen_mode(true);
             }
+            PrivateModeType::ShowCursor => {
+                performer.ofs_buf.set_cursor_visible(true);
+            }
             _ => {
                 tracing::warn!("CSI ?{}h: Unhandled private mode", mode.as_u16());
             }
@@ -104,6 +107,9 @@ pub fn reset_mode(
             PrivateModeType::AlternateScreenBuffer => {
                 performer.ofs_buf.set_alternate_screen_mode(false);
                 performer.ofs_buf.restore_main_screen();
+            }
+            PrivateModeType::ShowCursor => {
+                performer.ofs_buf.set_cursor_visible(false);
             }
             _ => {
                 tracing::warn!("CSI ?{}l: Unhandled private mode", mode.as_u16());

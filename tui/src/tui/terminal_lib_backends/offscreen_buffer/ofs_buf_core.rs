@@ -117,6 +117,10 @@ pub struct AnsiParserSupport {
     /// [`AnsiToOfsBufPerformer`]: crate::AnsiToOfsBufPerformer
     pub auto_wrap_mode: bool,
 
+    /// DECTCEM — cursor visible (`CSI ?25 h` / `CSI ?25 l`).
+    /// Default: visible.
+    pub cursor_visible: bool,
+
     /// Tracks the VT100 "pending wrap" (aka "wrapneeded") state.
     ///
     /// When auto-wrap mode is enabled and a printable character is written to the
@@ -233,6 +237,7 @@ impl Default for AnsiParserSupport {
             cursor_pos_for_esc_save_and_restore: None,
             character_set: CharacterSet::default(),
             auto_wrap_mode: true, // DECAWM default: enabled (VT100 compliant)
+            cursor_visible: true, // DECTCEM default: visible
             pending_wrap: false,
             current_style: TuiStyle::default(),
             pending_osc_events: Vec::new(),
@@ -252,6 +257,7 @@ impl Clone for AnsiParserSupport {
             cursor_pos_for_esc_save_and_restore: self.cursor_pos_for_esc_save_and_restore.clone(),
             character_set: self.character_set.clone(),
             auto_wrap_mode: self.auto_wrap_mode.clone(),
+            cursor_visible: self.cursor_visible.clone(),
             pending_wrap: self.pending_wrap.clone(),
             current_style: self.current_style.clone(),
             pending_osc_events: self.pending_osc_events.clone(),
@@ -270,6 +276,7 @@ impl PartialEq for AnsiParserSupport {
         self.cursor_pos_for_esc_save_and_restore == other.cursor_pos_for_esc_save_and_restore
             && self.character_set == other.character_set
             && self.auto_wrap_mode == other.auto_wrap_mode
+            && self.cursor_visible == other.cursor_visible
             && self.pending_wrap == other.pending_wrap
             && self.current_style == other.current_style
             && self.pending_osc_events == other.pending_osc_events
