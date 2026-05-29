@@ -30,8 +30,8 @@
 #[allow(clippy::wildcard_imports)]
 use super::super::*;
 use super::TAB_STOP_WIDTH;
-use crate::{ArrayBoundsCheck, ArrayOverflowResult, LengthOps, NumericValue, RowIndex,
-            col};
+use crate::{ArrayBoundsCheck, ArrayOverflowResult, ArrayUnderflowResult, LengthOps,
+            NumericValue, col};
 
 impl OffscreenBuffer {
     /// Handles backspace control character (0x08).
@@ -74,11 +74,15 @@ impl OffscreenBuffer {
     /// compatibility.
     pub fn handle_line_feed(&mut self) {
         self.ansi_parser_support.pending_wrap = false;
-        let max_row = self.window_size.row_height;
-        let next_row: RowIndex = self.cursor_pos.row_index + 1;
-        if next_row.overflows(max_row) == ArrayOverflowResult::Within {
-            self.cursor_pos.row_index = next_row;
-            } else {
+        let scroll_bottom = *self.get_scroll_range_inclusive().end();
+        if self
+            .cursor_pos
+            .row_index
+            .underflows(scroll_bottom)
+            == ArrayUnderflowResult::Underflowed
+        {
+            self.cursor_pos.row_index = self.cursor_pos.row_index + 1;
+        } else {
             let _unused = self.index_down();
         }
         self.cursor_pos.col_index = col(0);
