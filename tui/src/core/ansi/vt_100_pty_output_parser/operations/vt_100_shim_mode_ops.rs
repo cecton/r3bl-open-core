@@ -90,6 +90,7 @@ pub fn set_mode(
                 performer.ofs_buf.set_auto_wrap_mode(true);
             }
             PrivateModeType::AlternateScreenBuffer => {
+                performer.ofs_buf.save_main_screen();
                 performer.ofs_buf.set_alternate_screen_mode(true);
             }
             _ => {
@@ -117,7 +118,7 @@ pub fn reset_mode(
             }
             PrivateModeType::AlternateScreenBuffer => {
                 performer.ofs_buf.set_alternate_screen_mode(false);
-                performer.ofs_buf.clear();
+                performer.ofs_buf.restore_main_screen();
             }
             _ => {
                 tracing::warn!("CSI ?{}l: Unhandled private mode", mode.as_u16());
