@@ -45,7 +45,6 @@ pub enum CharacterSet {
 /// [`ANSI parser performer`]: crate::AnsiToOfsBufPerformer
 /// [`ANSI`]: https://en.wikipedia.org/wiki/ANSI_escape_code
 /// [`OffscreenBuffer::cursor_pos`]: OffscreenBuffer::cursor_pos
-#[derive(Debug, Clone, PartialEq)]
 pub struct AnsiParserSupport {
     /// Temporary cursor position storage for DECSC/DECRC escape sequences only.
     ///
@@ -216,6 +215,15 @@ pub struct AnsiParserSupport {
     /// buffer via `CSI ?1049h`, the current offscreen buffer content is saved here.
     /// When the program exits via `CSI ?1049l`, the saved content is restored.
     pub saved_main_screen: Option<Box<OffscreenBuffer>>,
+
+    /// Persisted [`vte::Parser`] state machine, preserved across PTY read chunks.
+    ///
+    /// Without this, an escape sequence split across two 4 KB PTY reads loses its
+    /// intermediate state (e.g., `ESC[` from read 1, then `0m` from read 2 —
+    /// the second half is interpreted as literal printable characters).
+    ///
+    /// [`vte::Parser`]: vte::Parser
+    pub vte_parser: Option<vte::Parser>,
 }
 
 impl Default for AnsiParserSupport {
@@ -233,7 +241,62 @@ impl Default for AnsiParserSupport {
             scroll_region_top: None, // Default: no top margin (uses row 1)
             scroll_region_bottom: None, // Default: no bottom margin (uses last row)
             saved_main_screen: None,
+            vte_parser: Some(vte::Parser::new()),
         }
+    }
+}
+
+impl Clone for AnsiParserSupport {
+    fn clone(&self) -> Self {
+        Self {
+            cursor_pos_for_esc_save_and_restore: self.cursor_pos_for_esc_save_and_restore.clone(),
+            character_set: self.character_set.clone(),
+            auto_wrap_mode: self.auto_wrap_mode.clone(),
+            pending_wrap: self.pending_wrap.clone(),
+            current_style: self.current_style.clone(),
+            pending_osc_events: self.pending_osc_events.clone(),
+            pending_dsr_responses: self.pending_dsr_responses.clone(),
+            pending_da_responses: self.pending_da_responses.clone(),
+            scroll_region_top: self.scroll_region_top.clone(),
+            scroll_region_bottom: self.scroll_region_bottom.clone(),
+            saved_main_screen: self.saved_main_screen.clone(),
+            vte_parser: Some(vte::Parser::new()),
+        }
+    }
+}
+
+impl PartialEq for AnsiParserSupport {
+    fn eq(&self, other: &Self) -> bool {
+        self.cursor_pos_for_esc_save_and_restore == other.cursor_pos_for_esc_save_and_restore
+            && self.character_set == other.character_set
+            && self.auto_wrap_mode == other.auto_wrap_mode
+            && self.pending_wrap == other.pending_wrap
+            && self.current_style == other.current_style
+            && self.pending_osc_events == other.pending_osc_events
+            && self.pending_dsr_responses == other.pending_dsr_responses
+            && self.pending_da_responses == other.pending_da_responses
+            && self.scroll_region_top == other.scroll_region_top
+            && self.scroll_region_bottom == other.scroll_region_bottom
+            && self.saved_main_screen == other.saved_main_screen
+    }
+}
+
+impl fmt::Debug for AnsiParserSupport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AnsiParserSupport")
+            .field("cursor_pos_for_esc_save_and_restore", &self.cursor_pos_for_esc_save_and_restore)
+            .field("character_set", &self.character_set)
+            .field("auto_wrap_mode", &self.auto_wrap_mode)
+            .field("pending_wrap", &self.pending_wrap)
+            .field("current_style", &self.current_style)
+            .field("pending_osc_events", &self.pending_osc_events)
+            .field("pending_dsr_responses", &self.pending_dsr_responses)
+            .field("pending_da_responses", &self.pending_da_responses)
+            .field("scroll_region_top", &self.scroll_region_top)
+            .field("scroll_region_bottom", &self.scroll_region_bottom)
+            .field("saved_main_screen", &self.saved_main_screen)
+            .field("vte_parser", &"<opaque>")
+            .finish()
     }
 }
 
