@@ -74,6 +74,9 @@ pub fn set_mode(
             PrivateModeType::AutoWrap => {
                 performer.ofs_buf.set_auto_wrap_mode(true);
             }
+            PrivateModeType::AlternateScreenBuffer => {
+                performer.ofs_buf.set_alternate_screen_mode(true);
+            }
             _ => {
                 tracing::warn!("CSI ?{}h: Unhandled private mode", mode.as_u16());
             }
@@ -96,6 +99,10 @@ pub fn reset_mode(
         match mode {
             PrivateModeType::AutoWrap => {
                 performer.ofs_buf.set_auto_wrap_mode(false);
+            }
+            PrivateModeType::AlternateScreenBuffer => {
+                performer.ofs_buf.set_alternate_screen_mode(false);
+                performer.ofs_buf.clear();
             }
             _ => {
                 tracing::warn!("CSI ?{}l: Unhandled private mode", mode.as_u16());

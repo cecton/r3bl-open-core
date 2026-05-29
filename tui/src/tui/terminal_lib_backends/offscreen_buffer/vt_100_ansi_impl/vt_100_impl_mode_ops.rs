@@ -33,6 +33,14 @@ impl OffscreenBuffer {
     pub fn set_auto_wrap_mode(&mut self, enabled: bool) {
         self.ansi_parser_support.auto_wrap_mode = enabled;
     }
+
+    pub fn set_alternate_screen_mode(&mut self, enabled: bool) {
+        self.terminal_mode.alternate_screen = if enabled {
+            AlternateScreenState::Active
+        } else {
+            AlternateScreenState::Inactive
+        };
+    }
 }
 
 #[cfg(test)]
