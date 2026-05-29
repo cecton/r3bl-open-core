@@ -32,7 +32,7 @@
 #[allow(clippy::wildcard_imports)]
 use super::super::*;
 use crate::{ArrayBoundsCheck, ArrayOverflowResult, ArrayUnderflowResult, AutoWrapState, ColIndex,
-            Length, NumericValue, OfsBufVT100, PixelChar, RowIndex, col,
+            Length, NumericValue, OfsBufVT100, PixelChar, col,
             core::coordinates::bounds_check::{CursorBoundsCheck, LengthOps,
                                               RangeBoundsExt, RangeConvertExt},
             height, ok, width};
