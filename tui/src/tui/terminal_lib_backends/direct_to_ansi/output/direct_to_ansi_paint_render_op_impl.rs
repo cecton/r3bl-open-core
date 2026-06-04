@@ -585,6 +585,7 @@ mod helpers {
     ) {
         // Generate ANSI sequences for TUI teardown (restore screen, mouse, cursor, etc.).
         let mut ansi_output = String::new();
+        ansi_output.push_str(&AnsiSequenceGenerator::reset_color());
         ansi_output.push_str(&AnsiSequenceGenerator::disable_bracketed_paste());
         ansi_output.push_str(&AnsiSequenceGenerator::disable_mouse_tracking());
         ansi_output.push_str(&AnsiSequenceGenerator::exit_alternate_screen());

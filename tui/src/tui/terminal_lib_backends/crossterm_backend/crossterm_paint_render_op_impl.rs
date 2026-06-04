@@ -453,7 +453,8 @@ impl PaintRenderOpImplCrossterm {
     ) {
         queue_terminal_command!(
             locked_output_device,
-            "ExitRawMode -> DisableBracketedPaste, Show, LeaveAlternateScreen, DisableMouseCapture",
+            "ExitRawMode -> ResetColor, DisableBracketedPaste, Show, LeaveAlternateScreen, DisableMouseCapture",
+            ResetColor,
             DisableBracketedPaste,
             Show,
             LeaveAlternateScreen,
