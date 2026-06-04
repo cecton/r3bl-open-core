@@ -379,6 +379,7 @@ impl PaintRenderOpImplCrossterm {
         );
     }
 
+
     pub fn set_fg_color(color: TuiColor, locked_output_device: LockedOutputDevice<'_>) {
         let color = color.into();
 

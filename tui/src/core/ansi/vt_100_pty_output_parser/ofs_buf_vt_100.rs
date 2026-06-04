@@ -316,8 +316,7 @@ impl fmt::Debug for ParserGlobalState {
             .field("auto_wrap_mode", &self.auto_wrap_mode)
             .field("current_style", &self.current_style)
             .field("pending_osc_events", &self.pending_osc_events)
-            .field("pending_dsr_responses", &self.pending_dsr_responses)
-            .field("pending_da_responses", &self.pending_da_responses)
+            .field("pending_pty_response_events", &self.pending_pty_response_events)
             .field("pending_wrap", &self.pending_wrap)
             .field("scroll_region_top", &self.scroll_region_top)
             .field("scroll_region_bottom", &self.scroll_region_bottom)
@@ -335,8 +334,7 @@ impl Clone for ParserGlobalState {
             auto_wrap_mode: self.auto_wrap_mode.clone(),
             current_style: self.current_style.clone(),
             pending_osc_events: self.pending_osc_events.clone(),
-            pending_dsr_responses: self.pending_dsr_responses.clone(),
-            pending_da_responses: self.pending_da_responses.clone(),
+            pending_pty_response_events: self.pending_pty_response_events.clone(),
             pending_wrap: self.pending_wrap.clone(),
             scroll_region_top: self.scroll_region_top.clone(),
             scroll_region_bottom: self.scroll_region_bottom.clone(),
@@ -353,8 +351,7 @@ impl PartialEq for ParserGlobalState {
             && self.auto_wrap_mode == other.auto_wrap_mode
             && self.current_style == other.current_style
             && self.pending_osc_events == other.pending_osc_events
-            && self.pending_dsr_responses == other.pending_dsr_responses
-            && self.pending_da_responses == other.pending_da_responses
+            && self.pending_pty_response_events == other.pending_pty_response_events
             && self.pending_wrap == other.pending_wrap
             && self.scroll_region_top == other.scroll_region_top
             && self.scroll_region_bottom == other.scroll_region_bottom
