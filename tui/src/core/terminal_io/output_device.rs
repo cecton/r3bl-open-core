@@ -8,6 +8,7 @@ use crossterm::{QueueableCommand,
                 cursor::{Hide, Show},
                 event::{DisableBracketedPaste, DisableMouseCapture,
                         EnableBracketedPaste, EnableMouseCapture},
+                style::ResetColor,
                 terminal::{EnterAlternateScreen, LeaveAlternateScreen}};
 use miette::IntoDiagnostic;
 use std::{io::{Stdout, Write, stdout},
@@ -272,6 +273,7 @@ impl OutputDevice {
     /// # Errors
     /// Returns an error if any terminal mode cannot be reset or I/O fails.
     pub fn teardown_full_screen_tui(&self) -> miette::Result<()> {
+        self.reset_color()?;
         self.disable_bracketed_paste()?;
         self.disable_mouse_tracking()?;
         self.exit_alternate_screen()?;
@@ -472,6 +474,17 @@ pub trait TerminalModeController {
     /// [`CSI`]: crate::CsiSequence
     /// [`DEC`]: https://en.wikipedia.org/wiki/Digital_Equipment_Corporation
     fn disable_bracketed_paste(&self) -> miette::Result<()>;
+
+    /// Resets all SGR attributes (colors, styles) to their defaults.
+    ///
+    /// Maps to [`CSI`] `0m` [`ANSI`] sequence (SGR reset).
+    ///
+    /// # Errors
+    /// Returns an error if the underlying I/O fails.
+    ///
+    /// [`ANSI`]: https://en.wikipedia.org/wiki/ANSI_escape_code
+    /// [`CSI`]: crate::CsiSequence
+    fn reset_color(&self) -> miette::Result<()>;
 }
 
 impl TerminalModeController for OutputDevice {
@@ -621,6 +634,26 @@ impl TerminalModeController for OutputDevice {
                 }
                 TerminalLibBackend::DirectToAnsi => {
                     let ansi = crate::ansi_output::terminal_modes::disable_bracketed_paste();
+                    writer.write_all(ansi.as_bytes()).into_diagnostic()?;
+                    writer.flush().into_diagnostic()?;
+                }
+            }
+            ok!()
+        })
+    }
+
+    /// Teardown method: Poison-safe to prevent [Double Panic Abort] during drop.
+    ///
+    /// [Double Panic Abort]: crate#the-double-panic-abort-risk
+    fn reset_color(&self) -> miette::Result<()> {
+        self.lock_raw_poison_safe(|writer| {
+            match TERMINAL_LIB_BACKEND {
+                TerminalLibBackend::Crossterm => {
+                    writer.queue(ResetColor).into_diagnostic()?;
+                    writer.flush().into_diagnostic()?;
+                }
+                TerminalLibBackend::DirectToAnsi => {
+                    let ansi = AnsiSequenceGenerator::reset_color();
                     writer.write_all(ansi.as_bytes()).into_diagnostic()?;
                     writer.flush().into_diagnostic()?;
                 }
