@@ -8,6 +8,7 @@ use crossterm::{QueueableCommand,
                         EnableBracketedPaste, EnableMouseCapture,
                         KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
                         PushKeyboardEnhancementFlags},
+                style::ResetColor,
                 terminal::{Clear, ClearType, DisableLineWrap, EnableLineWrap,
                            EnterAlternateScreen, LeaveAlternateScreen}};
 use miette::IntoDiagnostic;
@@ -270,6 +271,18 @@ pub trait TerminalModeController {
     /// [`ANSI`]: https://en.wikipedia.org/wiki/ANSI_escape_code
     /// [`CSI`]: crate::CsiSequence
     fn clear_screen(&self) -> miette::Result<()>;
+
+    /// Resets all [`SGR`] attributes (colors, styles) to their defaults.
+    ///
+    /// Maps to [`CSI`] `0m` [`ANSI`] sequence ([`SGR`] Reset).
+    ///
+    /// # Errors
+    /// Returns an error if the underlying I/O fails.
+    ///
+    /// [`ANSI`]: https://en.wikipedia.org/wiki/ANSI_escape_code
+    /// [`CSI`]: crate::CsiSequence
+    /// [`SGR`]: crate::SgrCode
+    fn reset_color(&self) -> miette::Result<()>;
 }
 
 impl TerminalModeController for OutputDevice {
@@ -538,6 +551,26 @@ impl TerminalModeController for OutputDevice {
                 }
                 TerminalLibBackend::DirectToAnsi => {
                     let ansi = ansi_output::screen_clearing::clear_screen();
+                    writer.write_all(ansi.as_bytes()).into_diagnostic()?;
+                    writer.flush().into_diagnostic()?;
+                }
+            }
+            ok!()
+        })
+    }
+
+    /// Teardown method: Poison-safe to prevent [Double Panic Abort] during drop.
+    ///
+    /// [Double Panic Abort]: crate#the-double-panic-abort-risk
+    fn reset_color(&self) -> miette::Result<()> {
+        self.lock_raw_poison_safe(|writer| {
+            match TERMINAL_LIB_BACKEND {
+                TerminalLibBackend::Crossterm => {
+                    writer.queue(ResetColor).into_diagnostic()?;
+                    writer.flush().into_diagnostic()?;
+                }
+                TerminalLibBackend::DirectToAnsi => {
+                    let ansi = ansi_output::color_ops::reset_color();
                     writer.write_all(ansi.as_bytes()).into_diagnostic()?;
                     writer.flush().into_diagnostic()?;
                 }
