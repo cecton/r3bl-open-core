@@ -450,6 +450,7 @@ mod helpers {
     }
 
 
+
     /// Flush the output device with logging.
     ///
     /// This is the [`direct_to_ansi`] equivalent of the crossterm `flush_now!` macro,
