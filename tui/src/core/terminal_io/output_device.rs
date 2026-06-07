@@ -232,6 +232,13 @@ impl OutputDevice {
         self.enable_bracketed_paste()?;
         self.enable_mouse_tracking()?;
         self.enter_alternate_screen()?;
+
+        self.write(|writer| -> miette::Result<()> {
+            let ansi = crate::ansi_output::terminal_modes::enable_modify_other_keys();
+            writer.write_all(ansi.as_bytes()).into_diagnostic()?;
+            ok!()
+        })?;
+
         self.hide_cursor()?;
 
         self.write(|writer| -> miette::Result<()> {
@@ -274,6 +281,13 @@ impl OutputDevice {
     /// Returns an error if any terminal mode cannot be reset or I/O fails.
     pub fn teardown_full_screen_tui(&self) -> miette::Result<()> {
         self.reset_color()?;
+
+        self.write(|writer| -> miette::Result<()> {
+            let ansi = crate::ansi_output::terminal_modes::disable_modify_other_keys();
+            writer.write_all(ansi.as_bytes()).into_diagnostic()?;
+            ok!()
+        })?;
+
         self.disable_bracketed_paste()?;
         self.disable_mouse_tracking()?;
         self.exit_alternate_screen()?;
@@ -653,7 +667,7 @@ impl TerminalModeController for OutputDevice {
                     writer.flush().into_diagnostic()?;
                 }
                 TerminalLibBackend::DirectToAnsi => {
-                    let ansi = AnsiSequenceGenerator::reset_color();
+                    let ansi = crate::ansi_output::color_ops::reset_color();
                     writer.write_all(ansi.as_bytes()).into_diagnostic()?;
                     writer.flush().into_diagnostic()?;
                 }
