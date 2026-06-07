@@ -445,6 +445,29 @@ fn convert_special_key(
     }
 
     // Modified special keys - use CSI sequences algorithmically.
+
+    // Tab, Enter, Backspace, and Escape use xterm's modifyOtherKeys mode 2 format:
+    // CSI 27;{mod};{keycode}~
+    // (The 27 prefix distinguishes these from CSI ~ function key codes.)
+    if matches!(
+        special,
+        SpecialKey::Tab | SpecialKey::Enter | SpecialKey::Backspace | SpecialKey::Esc
+    ) {
+        let key_code: u32 = match special {
+            SpecialKey::Tab => 9,
+            SpecialKey::Enter => 13,
+            SpecialKey::Backspace => 8,
+            SpecialKey::Esc => 27,
+            _ => unreachable!(),
+        };
+        let mod_code = modifiers.to_csi_modifier();
+        let seq = format!("\x1b[27;{mod_code};{key_code}~");
+        return Some(PtyInputEvent::SendControl(
+            ControlSequence::RawSequence(seq.into_bytes()),
+            CursorKeyMode::default(),
+        ));
+    }
+
     let (base_seq, key_code) = match special {
         SpecialKey::Up => ("A", 'A' as u32),
         SpecialKey::Down => ("B", 'B' as u32),
@@ -452,8 +475,6 @@ fn convert_special_key(
         SpecialKey::Left => ("D", 'D' as u32),
         SpecialKey::Home => ("H", 'H' as u32),
         SpecialKey::End => ("F", 'F' as u32),
-        SpecialKey::Tab => ("I", 'I' as u32),
-        SpecialKey::Enter => ("M", 'M' as u32),
         SpecialKey::PageUp => ("~", 5),
         SpecialKey::PageDown => ("~", 6),
         SpecialKey::Insert => ("~", 2),

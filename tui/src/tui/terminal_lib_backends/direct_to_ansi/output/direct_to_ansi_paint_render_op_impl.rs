@@ -563,6 +563,7 @@ mod helpers {
         ansi_output.push_str(&AnsiSequenceGenerator::enable_bracketed_paste());
         ansi_output.push_str(&AnsiSequenceGenerator::enable_mouse_tracking());
         ansi_output.push_str(&AnsiSequenceGenerator::enter_alternate_screen());
+        ansi_output.push_str(&AnsiSequenceGenerator::enable_modify_other_keys());
         ansi_output.push_str(&AnsiSequenceGenerator::cursor_position(row(0), col(0)));
         ansi_output.push_str(&AnsiSequenceGenerator::clear_screen());
         ansi_output.push_str(&AnsiSequenceGenerator::hide_cursor());
@@ -586,6 +587,7 @@ mod helpers {
         // Generate ANSI sequences for TUI teardown (restore screen, mouse, cursor, etc.).
         let mut ansi_output = String::new();
         ansi_output.push_str(&AnsiSequenceGenerator::reset_color());
+        ansi_output.push_str(&AnsiSequenceGenerator::disable_modify_other_keys());
         ansi_output.push_str(&AnsiSequenceGenerator::disable_bracketed_paste());
         ansi_output.push_str(&AnsiSequenceGenerator::disable_mouse_tracking());
         ansi_output.push_str(&AnsiSequenceGenerator::exit_alternate_screen());

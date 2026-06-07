@@ -233,6 +233,16 @@ fn convert_key_code_to_keypress(
         alt_key_state: modifiers.alt,
     };
 
+    // If the ONLY modifier is Shift and the key is a printable character,
+    // the Shift is already encoded in the character itself.
+    if matches!(key, Key::Character(c) if c != ' ')
+        && mask.shift_key_state == KeyState::Pressed
+        && mask.ctrl_key_state == KeyState::NotPressed
+        && mask.alt_key_state == KeyState::NotPressed
+    {
+        return KeyPress::Plain { key };
+    }
+
     if mask.shift_key_state == KeyState::NotPressed
         && mask.ctrl_key_state == KeyState::NotPressed
         && mask.alt_key_state == KeyState::NotPressed
@@ -438,7 +448,8 @@ mod tests {
 
     #[test]
     fn test_convert_with_shift_modifier() {
-        // Test key with Shift modifier
+        // Shift + printable character: the Shift is encoded in the character itself,
+        // so it normalizes to Plain.
         let modifiers = VT100KeyModifiersIR {
             shift: KeyState::Pressed,
             ctrl: KeyState::NotPressed,
@@ -448,13 +459,12 @@ mod tests {
         let result = convert_key_code_to_keypress(VT100KeyCodeIR::Char('a'), modifiers);
 
         match result {
-            KeyPress::WithModifiers { key, mask } => {
+            KeyPress::Plain { key } => {
                 assert_eq!(key, Key::Character('a'));
-                assert_eq!(mask.shift_key_state, KeyState::Pressed);
-                assert_eq!(mask.ctrl_key_state, KeyState::NotPressed);
-                assert_eq!(mask.alt_key_state, KeyState::NotPressed);
             }
-            KeyPress::Plain { .. } => panic!("Expected WithModifiers for Shift+key"),
+            KeyPress::WithModifiers { .. } => {
+                panic!("Expected Plain for Shift+printable character")
+            }
         }
     }
 

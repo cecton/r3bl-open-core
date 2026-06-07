@@ -981,7 +981,14 @@ mod helpers {
             }
             (2, ANSI_FUNCTION_KEY_TERMINATOR) => {
                 let modifiers = decode_modifiers(extract_modifier_parameter(params[1]));
+                // Try existing function/special key codes first, then modifyOtherKeys.
                 parse_function_or_special_key(params[0], modifiers)
+                    .or_else(|| parse_modify_other_keys_keycode(params[0], modifiers))
+            }
+            // modifyOtherKeys mode 1: CSI 27 ; mod ; keysym ~
+            (3, ANSI_FUNCTION_KEY_TERMINATOR) if params[0] == 27 => {
+                let modifiers = decode_modifiers(extract_modifier_parameter(params[1]));
+                parse_modify_other_keys_keycode(params[2], modifiers)
             }
             // Other CSI sequences
             _ => None,
@@ -1024,6 +1031,50 @@ mod helpers {
             SPECIAL_END_ALT1_CODE | SPECIAL_END_ALT2_CODE => VT100KeyCodeIR::End,
             SPECIAL_PAGE_UP_CODE => VT100KeyCodeIR::PageUp,
             SPECIAL_PAGE_DOWN_CODE => VT100KeyCodeIR::PageDown,
+            _ => return None,
+        };
+
+        Some(VT100InputEventIR::Keyboard {
+            code: key_code,
+            modifiers,
+        })
+    }
+
+    /// Maps an xterm `modifyOtherKeys` keycode (simple ASCII value) to the corresponding
+    /// [`VT100KeyCodeIR`].
+    ///
+    /// ## Keycode Ranges
+    ///
+    /// | Range          | Interpretation           | Example                       |
+    /// | :------------- | :----------------------- | :---------------------------- |
+    /// | `8`, `127`     | `Backspace` (simple)     | `ESC[8;5~` = Ctrl+Bksp        |
+    /// | `9`            | `Tab` (simple)           | `ESC[9;5~` = Ctrl+Tab         |
+    /// | `13`           | `Enter` (simple)         | `ESC[13;2~` = Shift+Enter     |
+    /// | `27`           | `Escape` (simple)        | `ESC[27;5~` = Ctrl+Esc        |
+    /// | `32`           | `Space`                  | `ESC[32;5~` = Ctrl+Space      |
+    /// | `33..=126`     | Printable `Char`         | `ESC[97;5~` = Ctrl+A          |
+    ///
+    /// # Returns
+    ///
+    /// - The mapped key event with decoded modifiers on success.
+    /// - Nothing if the keycode doesn't match any known mapping.
+    ///
+    /// [`VT100KeyCodeIR`]: super::VT100KeyCodeIR
+    fn parse_modify_other_keys_keycode(
+        code: u16,
+        modifiers: VT100KeyModifiersIR,
+    ) -> Option<VT100InputEventIR> {
+        let key_code = match code {
+            // Simple ASCII codes.
+            8 | 127 => VT100KeyCodeIR::Backspace,
+            9 => VT100KeyCodeIR::Tab,
+            13 => VT100KeyCodeIR::Enter,
+            27 => VT100KeyCodeIR::Escape,
+            32 => VT100KeyCodeIR::Char(' '),
+
+            // Printable ASCII range -> character with the given modifier.
+            _ if (33..=126).contains(&code) => VT100KeyCodeIR::Char(char::from(code as u8)),
+
             _ => return None,
         };
 
