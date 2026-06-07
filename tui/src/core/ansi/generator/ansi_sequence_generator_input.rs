@@ -486,6 +486,12 @@ mod keyboard {
             return None; // Ctrl+non-letter not supported
         }
 
+        // Other modifier combinations (Shift, Ctrl+Shift, Ctrl+Alt, etc.) →
+        // tilde sequence (modifyOtherKeys format).
+        if encoding::has_modifiers(modifiers) && c.is_ascii() {
+            return Some(generate_tilde_key(c as u8 as u16, modifiers));
+        }
+
         // Plain character: UTF-8 encoded
         let mut buf = [0u8; 4];
         let encoded = c.encode_utf8(&mut buf);

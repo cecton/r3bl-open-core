@@ -420,5 +420,23 @@ mod terminal_modes {
             CsiSequence::DisablePrivateMode(PrivateModeType::Other(BRACKETED_PASTE_MODE))
                 .to_string()
         }
+
+        /// Enable xterm `modifyOtherKeys` mode 2:
+        /// `CSI > 4 ; 2 m`
+        ///
+        /// When active, the terminal sends CSI tilde sequences for ALL modified key presses
+        /// (e.g., `ESC[65293;2~` for Shift+Enter), making modifier state explicit.
+        ///
+        /// See: <https://invisible-island.net/xterm/ctlseqs/ctlseqs.html> (modifyOtherKeys)
+        #[must_use]
+        pub fn enable_modify_other_keys() -> String {
+            "\x1b[>4;2m".to_string()
+        }
+
+        /// Disable xterm `modifyOtherKeys`: `CSI > 4 m`
+        #[must_use]
+        pub fn disable_modify_other_keys() -> String {
+            "\x1b[>4m".to_string()
+        }
     }
 }
