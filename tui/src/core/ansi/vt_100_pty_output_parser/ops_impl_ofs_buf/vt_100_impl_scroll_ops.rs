@@ -15,7 +15,7 @@
 //! [`ANSI`]: https://en.wikipedia.org/wiki/ANSI_escape_code
 //! [`DECSTBM`]: https://vt100.net/docs/vt510-rm/DECSTBM.html
 
-use crate::{ArrayBoundsCheck, ArrayUnderflowResult, OfsBufVT100, RowHeight,
+use crate::{ActiveScreenBuffer, ArrayBoundsCheck, ArrayUnderflowResult, OfsBufVT100, RowHeight,
             core::coordinates::bounds_check::RangeConvertExt, ok};
 
 impl OfsBufVT100 {
@@ -155,6 +155,17 @@ impl OfsBufVT100 {
         // Get scroll region as an inclusive range and convert to
         // exclusive for iteration.
         let scroll_region = self.get_scroll_range_inclusive();
+
+        // Capture the line scrolling off the top into scrollback, but only when
+        // the scroll region touches the top of the visible screen AND the primary
+        // screen buffer is active. Alternate screen (vim, less, etc.) should not
+        // populate scrollback.
+        if scroll_region.start().as_usize() == 0
+            && self.terminal_mode.active_screen_buffer == ActiveScreenBuffer::Primary
+        {
+            let top_line = self.buffer[scroll_region.start().as_usize()].clone();
+            self.scrollback.push(top_line);
+        }
 
         // Use shift_lines_up to shift lines up within the scroll region.
         self.shift_lines_up(scroll_region.to_exclusive(), 1)
