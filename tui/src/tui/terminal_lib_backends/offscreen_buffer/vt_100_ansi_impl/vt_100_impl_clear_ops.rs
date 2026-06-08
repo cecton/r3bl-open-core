@@ -306,6 +306,7 @@ impl OffscreenBuffer {
         for row in self.buffer.iter_mut() {
             row.fill(empty_char);
         }
+        self.scrollback.clear();
 
         ok!()
     }

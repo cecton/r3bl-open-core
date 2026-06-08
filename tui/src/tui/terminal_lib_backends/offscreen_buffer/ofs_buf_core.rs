@@ -536,6 +536,9 @@ pub struct OffscreenBuffer {
     ///
     /// [`ANSI`]: https://en.wikipedia.org/wiki/ANSI_escape_code
     pub ansi_parser_support: AnsiParserSupport,
+
+    /// Scrollback history for lines that have scrolled off the top of the screen.
+    pub scrollback: super::ScrollbackBuffer,
 }
 
 impl GetMemSize for OffscreenBuffer {
@@ -546,7 +549,7 @@ impl GetMemSize for OffscreenBuffer {
 }
 
 // Forward declarations for types defined in their own modules, just for this file.
-use super::{pixel_char::PixelChar, pixel_char_lines::PixelCharLines};
+use super::{pixel_char::PixelChar, pixel_char_line::PixelCharLine, pixel_char_lines::PixelCharLines};
 
 /// Trait for painting offscreen buffer content to terminal output.
 ///
@@ -696,6 +699,7 @@ impl OffscreenBuffer {
             terminal_mode: TerminalModeState::default(),
             memory_size,
             ansi_parser_support: super::AnsiParserSupport::default(),
+            scrollback: super::ScrollbackBuffer::default(),
         }
     }
 
@@ -744,6 +748,18 @@ impl OffscreenBuffer {
                 }
             }
         }
+    }
+
+    /// Number of lines in scrollback history.
+    #[must_use]
+    pub fn scrollback_len(&self) -> usize {
+        self.scrollback.len()
+    }
+
+    /// Get a scrollback line by index (0 = oldest).
+    #[must_use]
+    pub fn scrollback_get(&self, idx: usize) -> Option<&PixelCharLine> {
+        self.scrollback.get(idx)
     }
 }
 
