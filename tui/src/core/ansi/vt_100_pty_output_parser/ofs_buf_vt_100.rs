@@ -476,7 +476,7 @@ pub struct TerminalModeState {
     /// [`PTY`]: https://en.wikipedia.org/wiki/Pseudoterminal
     /// [`VT-100`]: https://vt100.net/docs/vt100-ug/chapter3.html
     #[allow(dead_code)]
-    pub mouse_tracking: terminal_mode_state_todo::MouseTrackingState,
+    pub mouse_tracking: crate::MouseTrackingState,
 
     /// Bracketed paste mode status.
     ///
@@ -489,39 +489,11 @@ pub struct TerminalModeState {
     /// [`PTY`]: https://en.wikipedia.org/wiki/Pseudoterminal
     /// [`VT-100`]: https://vt100.net/docs/vt100-ug/chapter3.html
     #[allow(dead_code)]
-    pub bracketed_paste: terminal_mode_state_todo::BracketedPasteState,
-}
+    pub bracketed_paste: crate::BracketedPasteState,
 
-mod terminal_mode_state_todo {
-    /// Mouse event tracking state.
-    ///
-    /// Controls whether the terminal captures mouse click, movement, and scroll events.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    /// Mouse tracking mode from PTY output events.
     #[allow(dead_code)]
-    pub enum MouseTrackingState {
-        /// Mouse tracking enabled - terminal sends mouse events
-        Enabled,
-        /// Mouse tracking disabled
-        #[default]
-        Disabled,
-    }
-
-    /// Bracketed paste mode state.
-    ///
-    /// Controls whether text pasted from clipboard is wrapped with special escape
-    /// sequences (`OSC 52`), allowing applications to distinguish pasted text from
-    /// keyboard input.
-    ///
-    /// [`OSC`]: crate::osc_codes::OscSequence
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-    #[allow(dead_code)]
-    pub enum BracketedPasteState {
-        /// Bracketed paste mode enabled
-        Enabled,
-        /// Bracketed paste mode disabled
-        #[default]
-        Disabled,
-    }
+    pub mouse_tracking_mode: crate::MouseTrackingMode,
 }
 
 /// Alternate screen buffer state.

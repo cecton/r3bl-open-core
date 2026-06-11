@@ -10,6 +10,47 @@ use std::{fmt::{Debug, {self}},
           mem::size_of,
           ops::{Deref, DerefMut}};
 
+/// Raw mode state for terminal input processing.
+///
+/// Raw mode (POSIX non-canonical mode) controls whether terminal input is processed
+/// character-by-character without line buffering. This is essential for interactive TUI
+/// applications that need immediate character feedback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RawModeState {
+    /// Raw mode enabled - input processed character-by-character
+    Enabled,
+    /// Raw mode disabled - input processed line-by-line with buffering
+    Disabled,
+}
+
+/// Mouse event tracking state.
+///
+/// Controls whether the terminal captures mouse click, movement, and scroll events. This
+/// enables interactive mouse support in TUI applications.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MouseTrackingState {
+    /// Mouse tracking enabled - terminal sends mouse events
+    Enabled,
+    /// Mouse tracking disabled
+    #[default]
+    Disabled,
+}
+
+/// Bracketed paste mode state.
+///
+/// Controls whether text pasted from clipboard is wrapped with special escape sequences
+/// ([`OSC`] 52), allowing applications to distinguish pasted text from keyboard input.
+/// This prevents misinterpretation of pasted content.
+///
+/// [`OSC`]: crate::osc_codes::OscSequence
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BracketedPasteState {
+    /// Bracketed paste mode enabled
+    Enabled,
+    /// Bracketed paste mode disabled
+    #[default]
+    Disabled,
+}
 /// Core terminal screen buffer structure with VT100/[`ANSI`] support.
 ///
 /// For comprehensive architectural overview and integration details, see the [module
