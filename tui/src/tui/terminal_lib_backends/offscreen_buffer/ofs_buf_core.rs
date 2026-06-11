@@ -2,8 +2,8 @@
 
 use super::super::{FlushKind, RenderOpOutputVec};
 use crate::{inline_string, ok};
-use crate::{GetMemSize, LockedOutputDevice, MemorySize, Pos, Size, TermRow, TuiStyle,
-            osc::OscEvent};
+use crate::{GetMemSize, LockedOutputDevice, MemorySize, MouseTrackingMode, Pos, Size,
+            TermRow, TuiStyle, osc::OscEvent};
 use std::fmt::Debug;
 
 /// Character set modes for terminal emulation.
@@ -418,6 +418,12 @@ pub struct TerminalModeState {
     /// [`RenderOpCommon`]: enum@crate::RenderOpCommon
     pub mouse_tracking: MouseTrackingState,
 
+    /// Semantic mouse tracking mode (the level the PTY child requested).
+    ///
+    /// Corresponds to xterm private modes 1000 (Basic), 1002 (ButtonDrag),
+    /// and 1003 (AnyEvent). Set via [`PtyOutputEvent::MouseModeChange`].
+    pub mouse_tracking_mode: MouseTrackingMode,
+
     /// Bracketed paste mode status.
     ///
     /// When enabled, text pasted from clipboard is wrapped with special escape
@@ -443,6 +449,7 @@ impl Default for TerminalModeState {
             raw_mode: RawModeState::Disabled,
             alternate_screen: AlternateScreenState::Inactive,
             mouse_tracking: MouseTrackingState::Disabled,
+            mouse_tracking_mode: MouseTrackingMode::None,
             bracketed_paste: BracketedPasteState::Disabled,
         }
     }
