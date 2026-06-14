@@ -9,7 +9,7 @@ use super::{super::{FlushKind, RenderOpOutputVec},
             PixelCharDiffChunks,
             pixel_char::PixelChar};
 use crate::{ColIndex, Flat2DArray, GetMemSize, List, LockedOutputDevice, Pos, RowIndex,
-            Size, fg_green, inline_string, ok};
+            Size, col, fg_green, inline_string, ok, row};
 use std::{fmt::{self, Debug},
           mem::size_of,
           ops::{Deref, DerefMut}};
@@ -245,6 +245,42 @@ impl OfsBuf {
             buffer: Flat2DArray::new_empty(window_size, PixelChar::Spacer),
             cursor_pos: Pos::default(),
         }
+    }
+
+    /// Resize the buffer to a new window size, preserving as much content as fits.
+    /// Cursor position is clamped to the new bounds.
+    pub fn resize(&mut self, arg_new_size: impl Into<Size>) {
+        let new_size: Size = arg_new_size.into();
+        let old_height = self.buffer.get_height().as_usize();
+        let old_width = self.buffer.get_width().as_usize();
+        let new_height = new_size.row_height.as_usize();
+        let new_width = new_size.col_width.as_usize();
+
+        if new_height == old_height && new_width == old_width {
+            return;
+        }
+
+        let mut new_buffer =
+            Flat2DArray::<PixelChar>::new_empty(new_size, PixelChar::Spacer);
+
+        let copy_rows = old_height.min(new_height);
+        let copy_cols = old_width.min(new_width);
+        for i in 0..copy_rows {
+            let src = self.buffer.get_row(i).unwrap();
+            let dst = new_buffer.get_row_mut(i).unwrap();
+            dst[..copy_cols].copy_from_slice(&src[..copy_cols]);
+        }
+
+        self.buffer = new_buffer;
+
+        let max_row = new_height.saturating_sub(1);
+        let max_col = new_width.saturating_sub(1);
+        let cur_row = self.cursor_pos.row_index.as_usize().min(max_row);
+        let cur_col = self.cursor_pos.col_index.as_usize().min(max_col);
+        self.cursor_pos = Pos {
+            row_index: row(cur_row),
+            col_index: col(cur_col),
+        };
     }
 
     /// Make sure each line is full of empty chars.
