@@ -384,7 +384,7 @@ impl OfsBufVT100 {
 #[cfg(test)]
 mod tests_shifting_ops {
     use super::*;
-    use crate::{OfsBufVT100, TuiStyle, len, row,
+    use crate::{OfsBufVT100, RowIndex, TuiStyle, len, row,
                 test_fixtures_ofs_buf::{create_plain_test_char,
                                         create_vt100_test_buffer_with_size}};
 
@@ -1157,18 +1157,35 @@ mod tests_print_char {
     }
 
     #[test]
-    fn test_apply_pending_wrap_clamped_at_bottom() {
+    fn test_apply_pending_wrap_scrolls_at_bottom() {
         let mut buffer = create_vt100_test_buffer_with_size(width(5), height(3));
+        let bottom = row(2);
+        let row_above = row(1);
 
-        // Last row of 3-height buffer is row(2).
-        buffer.cursor_pos = row(2) + col(4);
+        // Place a marker char at row above bottom.
+        let _unused = buffer.set_char(
+            row_above + col(0),
+            PixelChar::PlainText {
+                display_char: 'A',
+                style: Default::default(),
+            },
+        );
+
+        buffer.cursor_pos = bottom + col(4);
         buffer.parser_global_state.pending_wrap = true;
 
         buffer.apply_pending_wrap();
 
         assert!(!buffer.parser_global_state.pending_wrap);
-        // Stays on same row since next row would overflow. Col resets.
-        assert_eq!(buffer.cursor_pos, row(2) + col(0));
+        assert_eq!(buffer.cursor_pos, bottom + col(0));
+
+        // Buffer scrolled up: char from row 1 moved to row 0.
+        let scrolled_up = row(0) + col(0);
+        let ch = buffer.get_char(scrolled_up).unwrap();
+        match ch {
+            PixelChar::PlainText { display_char, .. } => assert_eq!(display_char, 'A'),
+            _ => panic!("Expected PlainText with 'A'"),
+        }
     }
 
     #[test]

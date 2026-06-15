@@ -166,7 +166,7 @@ mod tests_control_ops {
         ofs_buf_vt_100.handle_line_feed();
 
         assert_eq!(ofs_buf_vt_100.cursor_pos.row_index, row(3));
-        assert_eq!(ofs_buf_vt_100.cursor_pos.col_index, col(5)); // column preserved
+        assert_eq!(ofs_buf_vt_100.cursor_pos.col_index, col(0)); // column reset for Unix compat
     }
 
     #[test]
@@ -196,9 +196,9 @@ mod tests_control_ops {
             _ => panic!("Expected PlainText with 'A'"),
         }
 
-        // Cursor stays at bottom row, column preserved.
+        // Cursor stays at bottom row, column reset for Unix compatibility.
         assert_eq!(ofs_buf_vt_100.cursor_pos.row_index, bottom);
-        assert_eq!(ofs_buf_vt_100.cursor_pos.col_index, col(3));
+        assert_eq!(ofs_buf_vt_100.cursor_pos.col_index, col(0));
     }
 
     #[test]
