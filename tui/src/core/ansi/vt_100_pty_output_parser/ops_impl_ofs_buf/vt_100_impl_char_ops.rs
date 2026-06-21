@@ -339,6 +339,9 @@ impl OfsBufVT100 {
             CharacterSet::Ascii => ch,
         };
 
+        // Track last printed character for REP support.
+        self.parser_global_state.last_printed_char = Some(display_char);
+
         let row_max = self.ofs_buf.get_window_size().row_height;
         let col_max = self.ofs_buf.get_window_size().col_width;
         let current_row = self.get_cursor_pos().row_index;
@@ -384,6 +387,18 @@ impl OfsBufVT100 {
             }
         }
 
+        ok!()
+    }
+
+    /// Handle REP (Repeat Character) - repeat the last printed character n times.
+    /// The last printed character is tracked in `parser_global_state.last_printed_char`.
+    pub fn repeat_chars_at_cursor(&mut self, how_many: Length) -> miette::Result<()> {
+        let Some(ch) = self.parser_global_state.last_printed_char else {
+            return ok!();
+        };
+        for _ in 0..how_many.as_usize() {
+            self.print_char(ch)?;
+        }
         ok!()
     }
 }
