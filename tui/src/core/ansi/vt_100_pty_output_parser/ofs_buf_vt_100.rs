@@ -502,6 +502,12 @@ pub struct TerminalModeState {
     /// Mouse tracking mode from PTY output events.
     #[allow(dead_code)]
     pub mouse_tracking_mode: crate::MouseTrackingMode,
+
+    /// Focus event reporting mode.
+    ///
+    /// When enabled (by `CSI ? 1004 h`), the PTY child wants to receive
+    /// `CSI I` / `CSI O` focus events from the terminal multiplexer.
+    pub focus_events: bool,
 }
 
 /// Alternate screen buffer state.

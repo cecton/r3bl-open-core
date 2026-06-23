@@ -68,6 +68,13 @@ impl OfsBufVT100 {
     /// [`BCE`]: https://invisible-island.net/xterm/xterm.faq.html#what_is_bce
     /// [`self.buffer`]: field@crate::OfsBufVT100::ofs_buf
     /// [`self.hidden_screen_state.hidden_buffer`]: field@crate::HiddenScreenState::hidden_buffer
+    /// Set focus event reporting mode.
+    /// When enabled (by `CSI ? 1004 h`), the PTY child will receive
+    /// `CSI I` / `CSI O` focus events from the terminal multiplexer.
+    pub fn set_focus_events_mode(&mut self, enabled: bool) {
+        self.terminal_mode.focus_events = enabled;
+    }
+
     pub fn set_alt_screen_mode(&mut self, requested_screen_mode: RequestedScreenMode) {
         match (self.terminal_mode.alternate_screen, requested_screen_mode) {
             // Transition: Primary -> Alternate Screen
