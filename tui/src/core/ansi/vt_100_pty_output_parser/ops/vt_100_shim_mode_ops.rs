@@ -103,6 +103,9 @@ pub fn set_mode(
                 // We always use SGR formatting internally, so we don't need to do
                 // anything here.
             }
+            PrivateModeType::FocusEvents => {
+                performer.ofs_buf_vt_100.set_focus_events_mode(true);
+            }
             // Safely suppress/ignore other modern TUI extensions (like bracketed paste).
             // Currently, the multiplexer does not support routing rich input events back
             // into the PTY. Downgrading to debug prevents heavy log spam from interactive
@@ -167,6 +170,9 @@ pub fn reset_mode(
             }
             PrivateModeType::SgrMouseMode => {
                 // We always use SGR formatting internally, so we don't need to do anything here.
+            }
+            PrivateModeType::FocusEvents => {
+                performer.ofs_buf_vt_100.set_focus_events_mode(false);
             }
             // Safely suppress/ignore other modern TUI extensions (like bracketed paste).
             // Currently, the multiplexer does not support routing rich input events back
