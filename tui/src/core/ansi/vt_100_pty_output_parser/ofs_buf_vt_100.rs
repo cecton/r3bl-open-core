@@ -422,6 +422,12 @@ pub struct TerminalModeState {
     /// When enabled (by `CSI ? 1004 h`), the PTY child wants to receive
     /// `CSI I` / `CSI O` focus events from the terminal multiplexer.
     pub focus_events: bool,
+
+    /// Synchronized output mode (DEC private mode 2026).
+    ///
+    /// When enabled, the terminal should defer rendering until the mode is
+    /// reset, allowing atomic screen updates.
+    pub synchronized_output: bool,
 }
 
 

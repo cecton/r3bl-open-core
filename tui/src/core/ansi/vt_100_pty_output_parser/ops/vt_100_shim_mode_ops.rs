@@ -106,6 +106,9 @@ pub fn set_mode(
             PrivateModeType::FocusEvents => {
                 performer.ofs_buf_vt_100.set_focus_events_mode(true);
             }
+            PrivateModeType::SynchronizedOutput => {
+                performer.ofs_buf_vt_100.set_synchronized_output(true);
+            }
             // Safely suppress/ignore other modern TUI extensions (like bracketed paste).
             // Currently, the multiplexer does not support routing rich input events back
             // into the PTY. Downgrading to debug prevents heavy log spam from interactive
@@ -173,6 +176,9 @@ pub fn reset_mode(
             }
             PrivateModeType::FocusEvents => {
                 performer.ofs_buf_vt_100.set_focus_events_mode(false);
+            }
+            PrivateModeType::SynchronizedOutput => {
+                performer.ofs_buf_vt_100.set_synchronized_output(false);
             }
             // Safely suppress/ignore other modern TUI extensions (like bracketed paste).
             // Currently, the multiplexer does not support routing rich input events back
