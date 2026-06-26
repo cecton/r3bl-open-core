@@ -335,6 +335,7 @@ impl OfsBufVT100 {
     ///
     /// Returns an error if the operation fails.
     pub fn erase_display_scrollback(&mut self) -> miette::Result<()> {
+        self.erase_display_entire()?;
         self.scrollback_buffer.clear();
 
         ok!()
