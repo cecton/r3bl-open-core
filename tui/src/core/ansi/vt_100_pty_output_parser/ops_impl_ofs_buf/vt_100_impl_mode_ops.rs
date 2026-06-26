@@ -75,6 +75,14 @@ impl OfsBufVT100 {
         self.terminal_mode.focus_events = enabled;
     }
 
+    /// Set synchronized output mode (DEC private mode 2026).
+    ///
+    /// When enabled, the terminal should defer rendering until the mode is
+    /// reset. This allows programs to batch clear+repaint without flicker.
+    pub fn set_synchronized_output(&mut self, enabled: bool) {
+        self.terminal_mode.synchronized_output = enabled;
+    }
+
     pub fn set_alt_screen_mode(&mut self, requested_screen_mode: RequestedScreenMode) {
         match (self.terminal_mode.alternate_screen, requested_screen_mode) {
             // Transition: Primary -> Alternate Screen

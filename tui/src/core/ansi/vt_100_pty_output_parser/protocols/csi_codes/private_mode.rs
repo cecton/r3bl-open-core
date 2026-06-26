@@ -14,7 +14,7 @@ use crate::{ParamsExt,
                                     DECCOLM_132_COLUMN, DECOM_ORIGIN_MODE,
                                     DECSCLM_SMOOTH_SCROLL, DECSCNM_REVERSE_VIDEO,
                                     DECTCEM_SHOW_CURSOR, FOCUS_EVENTS,
-                                    SAVE_CURSOR_DEC}};
+                                    SAVE_CURSOR_DEC, SYNC_UP_OUTPUT}};
 
 /// [`DEC`] Private Mode types for [`CSI`] ? h/l sequences
 ///
@@ -44,6 +44,8 @@ pub enum PrivateModeType {
     AlternateScreenBuffer,
     /// Focus Events (1004)
     FocusEvents,
+    /// Synchronized Output (2026)
+    SynchronizedOutput,
     /// Unknown/unsupported private mode
     Other(u16),
 }
@@ -63,6 +65,7 @@ impl PrivateModeType {
             Self::SaveCursorDec => SAVE_CURSOR_DEC,
             Self::AlternateScreenBuffer => ALT_SCREEN_BUFFER,
             Self::FocusEvents => FOCUS_EVENTS,
+            Self::SynchronizedOutput => SYNC_UP_OUTPUT,
             Self::Other(n) => *n,
         }
     }
@@ -82,6 +85,7 @@ impl From<u16> for PrivateModeType {
             SAVE_CURSOR_DEC => Self::SaveCursorDec,
             ALT_SCREEN_BUFFER => Self::AlternateScreenBuffer,
             FOCUS_EVENTS => Self::FocusEvents,
+            SYNC_UP_OUTPUT => Self::SynchronizedOutput,
             n => Self::Other(n),
         }
     }
