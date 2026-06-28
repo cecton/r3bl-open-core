@@ -19,6 +19,7 @@ pub struct ScrollbackBuffer {
     pub lines: VecDeque<PixelCharLine>,
     pub limit: ScrollbackBufferLimit,
     pub cached_mem_size: usize,
+    pub evictions: usize,
 }
 
 mod impl_scrollback_state {
@@ -32,6 +33,7 @@ mod impl_scrollback_state {
                 lines: VecDeque::new(),
                 limit,
                 cached_mem_size: 0,
+                evictions: 0,
             }
         }
     }
@@ -57,6 +59,7 @@ mod impl_scrollback_state {
             if overflows_scrollback_buffer_limit
                 && let Some(evicted) = self.lines.pop_front() {
                     self.cached_mem_size -= evicted.get_mem_size();
+                    self.evictions += 1;
                 }
         }
 
@@ -65,6 +68,13 @@ mod impl_scrollback_state {
             self.lines.clear();
             self.cached_mem_size = 0;
         }
+
+        /// Number of lines evicted since last reset.
+        #[must_use]
+        pub fn eviction_count(&self) -> usize { self.evictions }
+
+        /// Reset the eviction counter.
+        pub fn reset_eviction_count(&mut self) { self.evictions = 0; }
     }
 
     impl GetMemSize for ScrollbackBuffer {

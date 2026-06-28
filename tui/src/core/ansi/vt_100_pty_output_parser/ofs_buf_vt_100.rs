@@ -76,6 +76,13 @@ pub struct OfsBufVT100 {
 
     /// Contains the history of lines that have scrolled off the physical screen.
     pub scrollback_buffer: ScrollbackBuffer,
+
+    /// Raw PTY bytes accumulated during DEC 2026 synchronized output.
+    /// Flushed through the VTE parser atomically when sync-off is received.
+    pub sync_buffer: Vec<u8>,
+
+    /// Whether we are currently in a synchronized output buffering period.
+    pub sync_buffering: bool,
 }
 
 mod impl_ofs_buf_vt_100 {
@@ -133,7 +140,33 @@ mod impl_ofs_buf_vt_100 {
                 hidden_screen_state: config.into(),
                 terminal_mode: TerminalModeState::default(),
                 scrollback_buffer: config.into(),
+                sync_buffer: Vec::new(),
+                sync_buffering: false,
             }
+        }
+
+        /// Number of lines in the scrollback buffer.
+        #[must_use]
+        pub fn scrollback_len(&self) -> usize {
+            self.scrollback_buffer.lines.len()
+        }
+
+        /// Number of scrollback lines evicted since last reset.
+        #[must_use]
+        pub fn scrollback_eviction_count(&self) -> usize {
+            self.scrollback_buffer.eviction_count()
+        }
+
+        /// Reset the scrollback eviction counter.
+        pub fn reset_scrollback_eviction_count(&mut self) {
+            self.scrollback_buffer.reset_eviction_count();
+        }
+
+        /// Total number of cells in the visible buffer (rows * cols).
+        #[must_use]
+        pub fn buffer_len(&self) -> usize {
+            let size = self.ofs_buf.get_window_size();
+            size.row_height.as_usize() * size.col_width.as_usize()
         }
     }
 
