@@ -17,7 +17,7 @@ use crate::{ParamsExt,
                                     DECCOLM_132_COLUMN, DECOM_ORIGIN_MODE,
                                     DECSCLM_SMOOTH_SCROLL, DECSCNM_REVERSE_VIDEO,
                                     DECTCEM_SHOW_CURSOR, FOCUS_EVENTS, SAVE_CURSOR_DEC,
-                                    SGR_MOUSE_MODE, SYNC_UP_OUTPUT, X11_MOUSE_TRACKING}};
+                                    SGR_MOUSE_MODE, X11_MOUSE_TRACKING}};
 
 /// [`DEC`] Private Mode types for the following [`CSI`] sequences:
 /// 1. `CSI ? <param> h` (set) and
@@ -106,8 +106,6 @@ pub enum PrivateModeType {
 
     /// Focus Events (1004)
     FocusEvents,
-    /// Synchronized Output (2026)
-    SynchronizedOutput,
     /// Unknown/unsupported private mode
     Other(u16),
 }
@@ -130,7 +128,6 @@ impl crate::WideningCastToU16 for PrivateModeType {
             Self::ApplicationMouseTracking => APPLICATION_MOUSE_TRACKING,
             Self::SgrMouseMode => SGR_MOUSE_MODE,
             Self::FocusEvents => FOCUS_EVENTS,
-            Self::SynchronizedOutput => SYNC_UP_OUTPUT,
             Self::Other(n) => n,
         }
     }
@@ -154,7 +151,6 @@ impl From<u16> for PrivateModeType {
             APPLICATION_MOUSE_TRACKING => PrivateModeType::ApplicationMouseTracking,
             SGR_MOUSE_MODE => PrivateModeType::SgrMouseMode,
             FOCUS_EVENTS => PrivateModeType::FocusEvents,
-            SYNC_UP_OUTPUT => PrivateModeType::SynchronizedOutput,
             n => PrivateModeType::Other(n),
         }
     }
