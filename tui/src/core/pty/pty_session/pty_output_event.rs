@@ -36,9 +36,9 @@ pub enum CursorKeyMode {
     /// Normal mode ([`ANSI`][ - `ESC`][ sequences
     ///
     /// [`ANSI`]: https://en.wikipedia.org/wiki/ANSI_escape_code
+    #[default]
     Normal,
     /// Application mode (VT52) - `ESC O` sequences
-    #[default]
     Application,
 }
 
@@ -123,9 +123,15 @@ impl ControlSequence {
                 CursorKeyMode::Application => Cow::Borrowed(&[0x1B, 0x4F, 0x44]), /* ESC O D */
             },
 
-            // Navigation keys (mode-independent)
-            ControlSequence::Home => Cow::Borrowed(&[0x1B, 0x5B, 0x48]), // ESC[H
-            ControlSequence::End => Cow::Borrowed(&[0x1B, 0x5B, 0x46]),  // ESC[F
+            // Navigation keys (mode-aware)
+            ControlSequence::Home => match mode {
+                CursorKeyMode::Normal => Cow::Borrowed(&[0x1B, 0x5B, 0x48]), // ESC[H
+                CursorKeyMode::Application => Cow::Borrowed(&[0x1B, 0x4F, 0x48]), /* ESC O H */
+            },
+            ControlSequence::End => match mode {
+                CursorKeyMode::Normal => Cow::Borrowed(&[0x1B, 0x5B, 0x46]), // ESC[F
+                CursorKeyMode::Application => Cow::Borrowed(&[0x1B, 0x4F, 0x46]), /* ESC O F */
+            },
             ControlSequence::PageUp => Cow::Borrowed(&[0x1B, 0x5B, 0x35, 0x7E]), // ESC[5~
             ControlSequence::PageDown => Cow::Borrowed(&[0x1B, 0x5B, 0x36, 0x7E]), /* ESC[6~ */
 
@@ -152,5 +158,32 @@ impl ControlSequence {
             // Raw sequence - pass through as-is (requires owned data)
             ControlSequence::RawSequence(bytes) => Cow::Owned(bytes.clone()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ControlSequence, CursorKeyMode};
+
+    #[test]
+    fn home_end_are_cursor_mode_aware() {
+        // Normal mode: CSI sequences.
+        assert_eq!(
+            ControlSequence::Home.to_bytes(CursorKeyMode::Normal).as_ref(),
+            b"\x1b[H"
+        );
+        assert_eq!(
+            ControlSequence::End.to_bytes(CursorKeyMode::Normal).as_ref(),
+            b"\x1b[F"
+        );
+        // Application mode: SS3 sequences (required by tig, vim, etc.).
+        assert_eq!(
+            ControlSequence::Home.to_bytes(CursorKeyMode::Application).as_ref(),
+            b"\x1bOH"
+        );
+        assert_eq!(
+            ControlSequence::End.to_bytes(CursorKeyMode::Application).as_ref(),
+            b"\x1bOF"
+        );
     }
 }

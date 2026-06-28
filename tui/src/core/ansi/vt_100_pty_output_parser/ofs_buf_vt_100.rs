@@ -431,6 +431,13 @@ pub struct TerminalModeState {
     /// When enabled (by `CSI ? 1004 h`), the PTY child wants to receive
     /// `CSI I` / `CSI O` focus events from the terminal multiplexer.
     pub focus_events: bool,
+
+    /// Cursor key mode (DECCKM).
+    ///
+    /// When set to [`CursorKeyMode::Application`], cursor keys (including Home and End)
+    /// send SS3 (`ESC O`) sequences. In [`CursorKeyMode::Normal`] they send CSI
+    /// (`ESC [`) sequences.
+    pub cursor_key_mode: crate::CursorKeyMode,
 }
 
 
@@ -492,7 +499,7 @@ mod tests {
         {
             // First we assert against a dummy value to see the real sizes in the test
             // output, then we will update it.
-            assert_eq!(size_of::<OfsBufVT100>(), 928);
+            assert_eq!(size_of::<OfsBufVT100>(), 1448);
         }
     }
 

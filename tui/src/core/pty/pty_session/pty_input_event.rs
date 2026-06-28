@@ -75,19 +75,27 @@ impl ModifierState {
 ///
 /// Instead of 300+ explicit pattern matches, this uses algorithmic generation
 /// based on terminal standards and modifier encoding.
+///
+/// Uses [`CursorKeyMode::default()`] for backward compatibility; prefer
+/// [`PtyInputEvent::from_input_event`] for mode-aware conversion.
 impl From<KeyPress> for Option<PtyInputEvent> {
     fn from(key: KeyPress) -> Self {
-        match key {
-            KeyPress::Plain { key } => convert_plain_key(key),
-            KeyPress::WithModifiers { key, mask } => {
-                convert_modified_key(key, ModifierState::from_mask(mask))
-            }
+        convert_keypress(key, CursorKeyMode::default())
+    }
+}
+
+/// Convert a [`KeyPress`] to a [`PtyInputEvent`] using the given cursor key mode.
+fn convert_keypress(key: KeyPress, mode: CursorKeyMode) -> Option<PtyInputEvent> {
+    match key {
+        KeyPress::Plain { key } => convert_plain_key(key, mode),
+        KeyPress::WithModifiers { key, mask } => {
+            convert_modified_key(key, ModifierState::from_mask(mask), mode)
         }
     }
 }
 
 /// Converts plain (unmodified) keys.
-fn convert_plain_key(key: Key) -> Option<PtyInputEvent> {
+fn convert_plain_key(key: Key, mode: CursorKeyMode) -> Option<PtyInputEvent> {
     match key {
         Key::Character(ch) => Some(PtyInputEvent::Write(ch.to_string().into_bytes())),
 
@@ -98,6 +106,7 @@ fn convert_plain_key(key: Key) -> Option<PtyInputEvent> {
                 shift: false,
                 alt: false,
             },
+            mode,
         ),
 
         Key::FunctionKey(func) => convert_function_key(
@@ -114,10 +123,14 @@ fn convert_plain_key(key: Key) -> Option<PtyInputEvent> {
 }
 
 /// Converts modified keys using algorithmic approach.
-fn convert_modified_key(key: Key, modifiers: ModifierState) -> Option<PtyInputEvent> {
+fn convert_modified_key(
+    key: Key,
+    modifiers: ModifierState,
+    mode: CursorKeyMode,
+) -> Option<PtyInputEvent> {
     match key {
         Key::Character(ch) => Some(convert_character_with_modifiers(ch, modifiers)),
-        Key::SpecialKey(special) => convert_special_key(special, modifiers),
+        Key::SpecialKey(special) => convert_special_key(special, modifiers, mode),
         Key::FunctionKey(func) => convert_function_key(func, modifiers),
         Key::KittyKeyboardProtocol(_) => None,
     }
@@ -371,6 +384,7 @@ fn get_ctrl_code_extended(ch: char) -> Option<u8> {
 fn convert_special_key(
     special: SpecialKey,
     modifiers: ModifierState,
+    mode: CursorKeyMode,
 ) -> Option<PtyInputEvent> {
     // Plain special keys (no modifiers)
     if modifiers
@@ -403,27 +417,27 @@ fn convert_special_key(
             )),
             SpecialKey::Up => Some(PtyInputEvent::SendControl(
                 ControlSequence::ArrowUp,
-                CursorKeyMode::default(),
+                mode,
             )),
             SpecialKey::Down => Some(PtyInputEvent::SendControl(
                 ControlSequence::ArrowDown,
-                CursorKeyMode::default(),
+                mode,
             )),
             SpecialKey::Right => Some(PtyInputEvent::SendControl(
                 ControlSequence::ArrowRight,
-                CursorKeyMode::default(),
+                mode,
             )),
             SpecialKey::Left => Some(PtyInputEvent::SendControl(
                 ControlSequence::ArrowLeft,
-                CursorKeyMode::default(),
+                mode,
             )),
             SpecialKey::Home => Some(PtyInputEvent::SendControl(
                 ControlSequence::Home,
-                CursorKeyMode::default(),
+                mode,
             )),
             SpecialKey::End => Some(PtyInputEvent::SendControl(
                 ControlSequence::End,
-                CursorKeyMode::default(),
+                mode,
             )),
             SpecialKey::PageUp => Some(PtyInputEvent::SendControl(
                 ControlSequence::PageUp,
@@ -609,7 +623,8 @@ fn generate_csi_u_sequence(unicode: u32, modifier: u8) -> PtyInputEvent {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CursorKeyMode, Key, KeyPress, KeyState, ModifierKeysMask, PtyInputEvent};
+    use crate::{CursorKeyMode, Key, KeyPress, KeyState, ModifierKeysMask, PtyInputEvent,
+                SpecialKey};
 
     #[test]
     fn test_plain_char_conversion() {
@@ -726,6 +741,45 @@ mod tests {
             Some(PtyInputEvent::SendControl(ctrl, mode)) => {
                 // Should be CSI 1;2P
                 assert_eq!(ctrl.to_bytes(mode).as_ref(), b"\x1b[1;2P");
+            }
+            _ => panic!("Expected SendControl event"),
+        }
+    }
+
+    #[test]
+    fn test_home_end_follows_cursor_key_mode() {
+        let key = KeyPress::Plain {
+            key: Key::SpecialKey(SpecialKey::Home),
+        };
+        let event = super::convert_keypress(key, CursorKeyMode::Normal);
+        match event {
+            Some(PtyInputEvent::SendControl(ctrl, mode)) => {
+                assert_eq!(ctrl.to_bytes(mode).as_ref(), b"\x1b[H");
+            }
+            _ => panic!("Expected SendControl event"),
+        }
+
+        let key = KeyPress::Plain {
+            key: Key::SpecialKey(SpecialKey::End),
+        };
+        let event = super::convert_keypress(key, CursorKeyMode::Application);
+        match event {
+            Some(PtyInputEvent::SendControl(ctrl, mode)) => {
+                assert_eq!(ctrl.to_bytes(mode).as_ref(), b"\x1bOF");
+            }
+            _ => panic!("Expected SendControl event"),
+        }
+    }
+
+    #[test]
+    fn test_arrows_follows_cursor_key_mode() {
+        let key = KeyPress::Plain {
+            key: Key::SpecialKey(SpecialKey::Up),
+        };
+        let event = super::convert_keypress(key, CursorKeyMode::Application);
+        match event {
+            Some(PtyInputEvent::SendControl(ctrl, mode)) => {
+                assert_eq!(ctrl.to_bytes(mode).as_ref(), b"\x1bOA");
             }
             _ => panic!("Expected SendControl event"),
         }
