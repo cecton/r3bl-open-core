@@ -926,6 +926,18 @@ mod tests {
     }
 
     #[test]
+    fn test_bracketed_paste_mode_is_tracked() {
+        let mut ofs_buf_vt_100 = create_test_ofs_buf_10r_by_10c();
+        assert!(!ofs_buf_vt_100.get_terminal_mode().is_bracketed_paste_enabled());
+
+        let _unused = ofs_buf_vt_100.apply_ansi_bytes("\x1b[?2004h");
+        assert!(ofs_buf_vt_100.get_terminal_mode().is_bracketed_paste_enabled());
+
+        let _unused = ofs_buf_vt_100.apply_ansi_bytes("\x1b[?2004l");
+        assert!(!ofs_buf_vt_100.get_terminal_mode().is_bracketed_paste_enabled());
+    }
+
+    #[test]
     fn test_feed_pty_bytes_without_sync_applies_immediately() {
         let mut ofs_buf_vt_100 = create_test_ofs_buf_10r_by_10c();
 
