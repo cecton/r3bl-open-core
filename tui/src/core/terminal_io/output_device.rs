@@ -149,6 +149,7 @@ impl OutputDevice {
             self.enable_bracketed_paste()?;
             self.enable_mouse_tracking()?;
             self.enable_keyboard_enhancement()?;
+            self.enable_modify_other_keys()?;
             self.enter_alternate_screen()?;
             self.hide_cursor()?;
 
@@ -201,13 +202,14 @@ impl OutputDevice {
     /// Tears down the full-screen TUI environment.
     ///
     /// This resets colors and attributes (so no style leaks into the shell), disables
-    /// keyboard enhancement, restores the cursor, exits the alternate screen, and
-    /// disables mouse/paste tracking.
+    /// keyboard enhancement and `modifyOtherKeys`, restores the cursor, exits the
+    /// alternate screen, and disables mouse/paste tracking.
     ///
     /// # Errors
     /// Returns an error if any terminal mode cannot be reset or I/O fails.
     pub fn teardown_full_screen_tui(&self) -> miette::Result<()> {
         self.reset_color()?;
+        self.disable_modify_other_keys()?;
         self.disable_keyboard_enhancement()?;
         self.disable_bracketed_paste()?;
         self.disable_mouse_tracking()?;

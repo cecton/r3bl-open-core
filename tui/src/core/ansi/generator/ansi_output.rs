@@ -383,6 +383,28 @@ pub mod terminal_modes {
         )
     }
 
+    /// Enable xterm `modifyOtherKeys` mode 2, for terminals that do not support the
+    /// [`Kitty`] keyboard protocol. [`CSI`] `>4;2m`.
+    ///
+    /// The terminal then sends an explicit sequence for every modified key press (e.g.
+    /// `CSI 27;2;13~` for Shift+Enter), so the modifier state is unambiguous. A
+    /// terminal that does not know the mode ignores it.
+    ///
+    /// [`CSI`]: crate::CsiSequence
+    /// [`Kitty`]: https://sw.kovidgoyal.net/kitty/
+    #[must_use]
+    pub fn enable_modify_other_keys() -> &'static str {
+        const_format::formatcp!("{CSI_START}>4;2m")
+    }
+
+    /// Disable xterm `modifyOtherKeys`. [`CSI`] `>4m`.
+    ///
+    /// [`CSI`]: crate::CsiSequence
+    #[must_use]
+    pub fn disable_modify_other_keys() -> &'static str {
+        const_format::formatcp!("{CSI_START}>4m")
+    }
+
     /// Enable line wrap ([`DECAWM`]: [`DEC`] Autowrap Mode = set).
     /// [`CSI`] `?7h`
     ///

@@ -237,6 +237,38 @@ pub trait TerminalModeController {
     /// [`Kitty`]: https://sw.kovidgoyal.net/kitty/
     fn disable_keyboard_enhancement(&self) -> miette::Result<()>;
 
+    /// Enables xterm `modifyOtherKeys` mode 2, the fallback of
+    /// [`TerminalModeController::enable_keyboard_enhancement`] for terminals that do not
+    /// support the [`Kitty`] keyboard protocol (xterm, for one).
+    ///
+    /// The terminal then sends an explicit sequence for every modified key press (e.g.
+    /// `CSI 27;2;13~` for Shift+Enter). The two modes can be on together: each terminal
+    /// acts on the one it knows and discards the other, and the input parser decodes
+    /// both. The sequence is written as is on both backends, since crossterm has no
+    /// command for it.
+    ///
+    /// Maps to [`CSI`] `>4;2m` [`ANSI`] sequence.
+    ///
+    /// # Errors
+    /// Returns an error if the underlying I/O fails.
+    ///
+    /// [`ANSI`]: https://en.wikipedia.org/wiki/ANSI_escape_code
+    /// [`CSI`]: crate::CsiSequence
+    /// [`Kitty`]: https://sw.kovidgoyal.net/kitty/
+    fn enable_modify_other_keys(&self) -> miette::Result<()>;
+
+    /// Disables xterm `modifyOtherKeys`. Called when it is no longer needed following a
+    /// call to [`TerminalModeController::enable_modify_other_keys`].
+    ///
+    /// Maps to [`CSI`] `>4m` [`ANSI`] sequence.
+    ///
+    /// # Errors
+    /// Returns an error if the underlying I/O fails.
+    ///
+    /// [`ANSI`]: https://en.wikipedia.org/wiki/ANSI_escape_code
+    /// [`CSI`]: crate::CsiSequence
+    fn disable_modify_other_keys(&self) -> miette::Result<()>;
+
     /// Enables line wrapping at the right margin.
     ///
     /// Maps to [`CSI`] `?7h` [`ANSI`] sequence ([`DEC`] Private Mode Set for autowrap).
@@ -501,6 +533,28 @@ impl TerminalModeController for OutputDevice {
                     writer.flush().into_diagnostic()?;
                 }
             }
+            ok!()
+        })
+    }
+
+    /// Setup method: Fail-fast if the terminal is poisoned.
+    fn enable_modify_other_keys(&self) -> miette::Result<()> {
+        self.write(|writer| {
+            let ansi = ansi_output::terminal_modes::enable_modify_other_keys();
+            writer.write_all(ansi.as_bytes()).into_diagnostic()?;
+            writer.flush().into_diagnostic()?;
+            ok!()
+        })
+    }
+
+    /// Teardown method: Poison-safe to prevent [Double Panic Abort] during drop.
+    ///
+    /// [Double Panic Abort]: crate#the-double-panic-abort-risk
+    fn disable_modify_other_keys(&self) -> miette::Result<()> {
+        self.lock_raw_poison_safe(|writer| {
+            let ansi = ansi_output::terminal_modes::disable_modify_other_keys();
+            writer.write_all(ansi.as_bytes()).into_diagnostic()?;
+            writer.flush().into_diagnostic()?;
             ok!()
         })
     }

@@ -12,7 +12,9 @@ use crate::{byte_offset,
             core::ansi::constants::{ANSI_CSI_BRACKET, ANSI_ESC,
                                     ANSI_FUNCTION_KEY_TERMINATOR, ARROW_DOWN_FINAL,
                                     ARROW_LEFT_FINAL, ARROW_RIGHT_FINAL,
-                                    ARROW_UP_FINAL, BACKTAB_FINAL, CSI_MIN_LEN,
+                                    ARROW_UP_FINAL, ASCII_DEL, BACKTAB_FINAL,
+                                    CONTROL_BACKSPACE, CONTROL_ENTER, CONTROL_ESC,
+                                    CONTROL_TAB, CSI_MIN_LEN,
                                     CSI_PARAM_DEFAULT, CSI_PARAM_ZERO,
                                     FUNCTION_F1_CODE, FUNCTION_F2_CODE,
                                     FUNCTION_F3_CODE, FUNCTION_F4_CODE,
@@ -170,9 +172,22 @@ enum CsiParamShape {
     /// ~`.
     TildeKey { code: u16, modifier: Option<u8> },
 
+    /// xterm `modifyOtherKeys` key: `CSI 27 ; <modifier> ; <keycode> ~`.
+    ///
+    /// Sent by terminals without the [`Kitty`] keyboard protocol once
+    /// `modifyOtherKeys` is on (see [`enable_modify_other_keys`]).
+    ///
+    /// [`enable_modify_other_keys`]: crate::ansi_output::terminal_modes::enable_modify_other_keys
+    /// [`Kitty`]: https://sw.kovidgoyal.net/kitty/
+    ModifyOtherKeys { modifier: u8, keycode: u16 },
+
     /// Any other unsupported parameter layout.
     Unknown,
 }
+
+/// First parameter of a `modifyOtherKeys` sequence, which sets it apart from the
+/// `CSI <code> ; <modifier> ~` function and special keys.
+const MODIFY_OTHER_KEYS_PREFIX: u16 = 27;
 
 impl CsiParamShape {
     /// Classifies parsed [`CSI`] parameters and final byte into a [`CsiParamShape`].
@@ -191,6 +206,11 @@ impl CsiParamShape {
                 [code, modifier] => Self::TildeKey {
                     code: *code,
                     modifier: Some(modifiers::extract_modifier_parameter(*modifier)),
+                },
+                // CSI 27 ; <modifier> ; <keycode> ~ (xterm modifyOtherKeys).
+                [MODIFY_OTHER_KEYS_PREFIX, modifier, keycode] => Self::ModifyOtherKeys {
+                    modifier: modifiers::extract_modifier_parameter(*modifier),
+                    keycode: *keycode,
                 },
                 _ => Self::Unknown,
             }
@@ -241,7 +261,20 @@ impl CsiParamShape {
             // Tilde keys: function keys and special keys (CSI code ~ or CSI code ; m ~).
             (Self::TildeKey { code, modifier }, ANSI_FUNCTION_KEY_TERMINATOR) => {
                 let modifiers = modifier.map_or_default(modifiers::decode_modifiers);
-                parse_function_or_special_key(code, modifiers)
+                // Function and special keys first; a modified code that is none of
+                // them may be a modifyOtherKeys keycode (`CSI <keycode> ; <mod> ~`).
+                match (parse_function_or_special_key(code, modifiers), modifier) {
+                    (None, Some(_)) => parse_modify_other_keys_keycode(code, modifiers),
+                    (key, _) => key,
+                }
+            }
+
+            // xterm modifyOtherKeys (CSI 27 ; m ; keycode ~).
+            (Self::ModifyOtherKeys { modifier, keycode }, ANSI_FUNCTION_KEY_TERMINATOR) => {
+                parse_modify_other_keys_keycode(
+                    keycode,
+                    modifiers::decode_modifiers(modifier),
+                )
             }
 
             _ => None,
@@ -286,6 +319,54 @@ fn parse_function_or_special_key(
         SPECIAL_PAGE_UP_CODE => VT100KeyCodeIR::PageUp,
         SPECIAL_PAGE_DOWN_CODE => VT100KeyCodeIR::PageDown,
 
+        _ => return None,
+    };
+
+    Some(VT100InputEventIR::Keyboard {
+        code: key_code,
+        modifiers,
+    })
+}
+
+/// Maps an xterm `modifyOtherKeys` keycode (an ASCII value) to a
+/// [`VT100InputEventIR`].
+///
+/// | Keycode        | Key                                                      |
+/// | :------------- | :------------------------------------------------------- |
+/// | `8`, `127`     | `Backspace`                                              |
+/// | `9`            | `Tab`                                                    |
+/// | `13`           | `Enter`                                                  |
+/// | `27`           | `Escape`                                                 |
+/// | `32`           | Space                                                    |
+/// | `33..=126`     | Printable character                                      |
+///
+/// Shift alone on a printable character is dropped: xterm already sends the shifted
+/// character (`Shift+a` is keycode `65`, `'A'`), so keeping the modifier would report
+/// it twice. This is not done for [`Kitty`] input, which reports the unshifted
+/// character along with the modifier.
+///
+/// Returns [`None`] for any other keycode.
+///
+/// [`Kitty`]: https://sw.kovidgoyal.net/kitty/
+fn parse_modify_other_keys_keycode(
+    code: u16,
+    modifiers: VT100KeyModifiersIR,
+) -> Option<VT100InputEventIR> {
+    let byte = u8::try_from(code).ok()?;
+    let (key_code, modifiers) = match byte {
+        CONTROL_BACKSPACE | ASCII_DEL => (VT100KeyCodeIR::Backspace, modifiers),
+        CONTROL_TAB => (VT100KeyCodeIR::Tab, modifiers),
+        CONTROL_ENTER => (VT100KeyCodeIR::Enter, modifiers),
+        CONTROL_ESC => (VT100KeyCodeIR::Escape, modifiers),
+        b' ' => (VT100KeyCodeIR::Char(' '), modifiers),
+        b'!'..=b'~' => {
+            let modifiers = if modifiers == VT100KeyModifiersIR::SHIFT {
+                VT100KeyModifiersIR::NONE
+            } else {
+                modifiers
+            };
+            (VT100KeyCodeIR::Char(char::from(byte)), modifiers)
+        }
         _ => return None,
     };
 
@@ -911,5 +992,126 @@ mod tests {
         let input = b"\x1b[99~";
         let event = parse_keyboard_sequence(input);
         assert_eq!(event, None, "Should return None for unknown function key");
+    }
+
+    // ==================== xterm modifyOtherKeys ====================
+
+    /// Parses `input` and returns its single keyboard event, which must use all of it.
+    fn parse_key(input: &[u8]) -> (VT100KeyCodeIR, VT100KeyModifiersIR) {
+        let ParsedInputEventIR {
+            event,
+            bytes_consumed,
+        } = parse_keyboard_sequence(input).expect("Should parse");
+        assert_eq!(bytes_consumed.as_usize(), input.len());
+        let VT100InputEventIR::Keyboard { code, modifiers } = event else {
+            panic!("Expected a keyboard event, got {event:?}");
+        };
+        (code, modifiers)
+    }
+
+    fn shift_and_ctrl() -> VT100KeyModifiersIR {
+        use crate::KeyState;
+        VT100KeyModifiersIR {
+            shift: KeyState::Pressed,
+            ctrl: KeyState::Pressed,
+            ..VT100KeyModifiersIR::NONE
+        }
+    }
+
+    #[test]
+    fn test_modify_other_keys_shift_enter() {
+        assert_eq!(
+            parse_key(b"\x1b[27;2;13~"),
+            (VT100KeyCodeIR::Enter, VT100KeyModifiersIR::SHIFT)
+        );
+    }
+
+    #[test]
+    fn test_modify_other_keys_ctrl_tab() {
+        assert_eq!(
+            parse_key(b"\x1b[27;5;9~"),
+            (VT100KeyCodeIR::Tab, VT100KeyModifiersIR::CTRL)
+        );
+    }
+
+    #[test]
+    fn test_modify_other_keys_backspace_and_escape() {
+        assert_eq!(
+            parse_key(b"\x1b[27;5;127~"),
+            (VT100KeyCodeIR::Backspace, VT100KeyModifiersIR::CTRL)
+        );
+        assert_eq!(
+            parse_key(b"\x1b[27;5;8~"),
+            (VT100KeyCodeIR::Backspace, VT100KeyModifiersIR::CTRL)
+        );
+        assert_eq!(
+            parse_key(b"\x1b[27;3;27~"),
+            (VT100KeyCodeIR::Escape, VT100KeyModifiersIR::ALT)
+        );
+    }
+
+    #[test]
+    fn test_modify_other_keys_ctrl_letter() {
+        assert_eq!(
+            parse_key(b"\x1b[27;5;97~"),
+            (VT100KeyCodeIR::Char('a'), VT100KeyModifiersIR::CTRL)
+        );
+    }
+
+    #[test]
+    fn test_modify_other_keys_shift_printable_drops_shift() {
+        // xterm sends the shifted character, so Shift is not kept.
+        assert_eq!(
+            parse_key(b"\x1b[27;2;65~"),
+            (VT100KeyCodeIR::Char('A'), VT100KeyModifiersIR::NONE)
+        );
+        assert_eq!(
+            parse_key(b"\x1b[27;2;33~"),
+            (VT100KeyCodeIR::Char('!'), VT100KeyModifiersIR::NONE)
+        );
+    }
+
+    #[test]
+    fn test_modify_other_keys_shift_keeps_modifier_on_non_printable() {
+        assert_eq!(
+            parse_key(b"\x1b[27;2;32~"),
+            (VT100KeyCodeIR::Char(' '), VT100KeyModifiersIR::SHIFT)
+        );
+        assert_eq!(
+            parse_key(b"\x1b[27;6;65~"),
+            (VT100KeyCodeIR::Char('A'), shift_and_ctrl())
+        );
+    }
+
+    #[test]
+    fn test_modify_other_keys_unknown_keycode() {
+        assert_eq!(parse_keyboard_sequence(b"\x1b[27;5;1~"), None);
+        assert_eq!(parse_keyboard_sequence(b"\x1b[27;5;300~"), None);
+    }
+
+    #[test]
+    fn test_modified_tilde_keycode_falls_back_to_modify_other_keys() {
+        // 9 and 27 are no function or special key code.
+        assert_eq!(
+            parse_key(b"\x1b[9;5~"),
+            (VT100KeyCodeIR::Tab, VT100KeyModifiersIR::CTRL)
+        );
+        assert_eq!(
+            parse_key(b"\x1b[27;5~"),
+            (VT100KeyCodeIR::Escape, VT100KeyModifiersIR::CTRL)
+        );
+    }
+
+    #[test]
+    fn test_function_and_special_keys_win_over_modify_other_keys() {
+        // 13 is F3 and 8 is End in the tilde key table.
+        assert_eq!(
+            parse_key(b"\x1b[13;5~"),
+            (VT100KeyCodeIR::Function(3), VT100KeyModifiersIR::CTRL)
+        );
+        assert_eq!(
+            parse_key(b"\x1b[8;5~"),
+            (VT100KeyCodeIR::End, VT100KeyModifiersIR::CTRL)
+        );
     }
 }
